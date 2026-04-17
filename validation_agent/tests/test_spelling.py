@@ -13,7 +13,7 @@ def test_spelling_attempt_recorded():
     # Submit answer
     res = client.post("/practice/spelling/submit", {
         "word_id": word_id,
-        "answer": q["word"],
+        "answer": q.get("word") or q.get("word_audio"),
         "correct": True
     })
 
