@@ -29,18 +29,23 @@ def test_words_submission():
     courses_payload = courses_res.json()
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    # 2) Fetch synonym question using lesson_id from API
-    question_res = client.get(f"/practice/synonym/question?lesson_id={lesson_id}")
-    question = question_res.json()
+    # 2) Start session to get the next synonym question for the selected lesson
+    start_res = client.post(f"/practice/session/start?lesson_id={lesson_id}")
+    start_payload = start_res.json()
 
-    assert isinstance(question, dict) and question, f"Invalid synonym question payload: {question}"
-    assert "word_id" in question, f"word_id missing in synonym question payload: {question}"
-    assert "correct_answer" in question, f"correct_answer missing in synonym question payload: {question}"
+    assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
+    assert "question" in start_payload, f"question missing in session start payload: {start_payload}"
 
-    # 3) Submit using UI payload structure with only API-returned fields
+    q = start_payload["question"]
+    assert isinstance(q, dict) and q, f"Invalid question payload in session start response: {q}"
+    assert "word_id" in q, f"word_id missing in question payload: {q}"
+    assert "options" in q, f"options missing in question payload: {q}"
+    assert isinstance(q["options"], list) and q["options"], f"options must be a non-empty list: {q}"
+
+    # 3) Submit using the returned word_id and first available option
     submit_payload = {
-        "word_id": question["word_id"],
-        "answer": question["correct_answer"],
+        "word_id": q["word_id"],
+        "answer": q["options"][0],
     }
     submit_res = client.post("/practice/synonym/answer", submit_payload)
 
