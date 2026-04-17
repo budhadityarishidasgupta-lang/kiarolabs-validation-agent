@@ -21,8 +21,6 @@ def test_dashboard_admin_unlocks_all_modules():
     res = client.get("/dashboard")
     assert res.status_code == 200
 
-    modules = res.json()
-    for module_name, module_data in modules.items():
-        assert module_data.get("unlocked") is True, (
-            f"Expected admin to have '{module_name}' unlocked, got: {module_data}"
-        )
+    data = res.json()
+    for module in data["modules"].values():
+        assert module["unlocked"] == True
