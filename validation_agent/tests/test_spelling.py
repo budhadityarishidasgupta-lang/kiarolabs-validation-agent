@@ -1,4 +1,4 @@
-from client import APIClient
+from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
 
 def test_spelling_attempt_recorded():
