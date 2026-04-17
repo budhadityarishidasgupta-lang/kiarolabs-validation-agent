@@ -1,5 +1,5 @@
 from client import APIClient
-from config import TEST_USERS
+from validation_agent.config import TEST_USERS
 
 def test_spelling_attempt_recorded():
     client = APIClient()
