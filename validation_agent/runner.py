@@ -3,6 +3,7 @@ from validation_agent.tests.test_admin_access import test_admin_unlocks_all
 from validation_agent.tests.test_spelling import test_spelling_question_retrieval
 from validation_agent.tests.test_words import test_words_submission
 from validation_agent.tests.test_dashboard import test_dashboard_loads, test_dashboard_admin_unlocks_all_modules
+import pytest
 
 def run_all():
     print("Running Validation Agent...\n")
@@ -20,6 +21,8 @@ def run_all():
         try:
             test()
             print(f"✅ {test.__name__}")
+        except pytest.skip.Exception as e:
+            print(f"⚠️ {test.__name__} SKIPPED: {e}")
         except Exception as e:
             print(f"❌ {test.__name__} FAILED: {e}")
 
