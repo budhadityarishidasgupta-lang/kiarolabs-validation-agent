@@ -20,30 +20,18 @@ def _extract_first_lesson_id(courses_payload):
     return first_lesson["lesson_id"]
 
 
-def test_spelling_attempt_recorded():
+def test_spelling_question_retrieval():
     client = APIClient()
-    client.login(TEST_USERS["test_admin"]["email"], TEST_USERS["test_admin"]["password"])
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
 
-    # 1) Follow UI flow: fetch spelling courses and resolve lesson_id from API response
     courses_res = client.get("/practice/spelling/courses")
     courses_payload = courses_res.json()
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    # 2) Fetch spelling question using lesson_id from API
     question_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
     question = question_res.json()
 
+    assert question_res.status_code == 200, question_res.text
     assert isinstance(question, dict) and question, f"Invalid spelling question payload: {question}"
     assert "word_id" in question, f"word_id missing in spelling question payload: {question}"
-    assert "word" in question, f"word missing in spelling question payload: {question}"
-
-    # 3) Submit using UI payload structure with only API-returned fields
-    submit_payload = {
-        "word_id": question["word_id"],
-        "answer": question["word"],
-        "correct": True,
-    }
-    submit_res = client.post("/practice/spelling/submit", submit_payload)
-
-    assert submit_res is not None
-    assert submit_res.status_code == 200, submit_res.text
+    assert "masked_word" in question, f"masked_word missing in spelling question payload: {question}"

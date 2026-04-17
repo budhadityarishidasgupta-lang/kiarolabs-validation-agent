@@ -20,32 +20,38 @@ def _extract_first_lesson_id(courses_payload):
     return first_lesson["lesson_id"]
 
 
+def _json_or_raise(response, endpoint):
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise AssertionError(
+            f"Expected JSON from {endpoint} but got status={response.status_code}, body={response.text}"
+        ) from exc
+
+
 def test_words_submission():
     client = APIClient()
     client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
 
-    # 1) Follow UI flow: fetch courses and resolve lesson_id from API response
     courses_res = client.get("/practice/courses")
-    courses_payload = courses_res.json()
+    courses_payload = _json_or_raise(courses_res, "/practice/courses")
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    # 2) Start session to get the next synonym question for the selected lesson
-    start_res = client.post(f"/practice/session/start?lesson_id={lesson_id}")
-    start_payload = start_res.json()
+    start_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
+    start_payload = _json_or_raise(start_res, f"/practice/session/start?lesson_id={lesson_id}")
 
     assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
     assert "question" in start_payload, f"question missing in session start payload: {start_payload}"
 
-    q = start_payload["question"]
-    assert isinstance(q, dict) and q, f"Invalid question payload in session start response: {q}"
-    assert "word_id" in q, f"word_id missing in question payload: {q}"
-    assert "options" in q, f"options missing in question payload: {q}"
-    assert isinstance(q["options"], list) and q["options"], f"options must be a non-empty list: {q}"
+    question = start_payload["question"]
+    assert isinstance(question, dict) and question, f"Invalid question payload in session start response: {question}"
+    assert "word_id" in question, f"word_id missing in question payload: {question}"
+    assert "options" in question, f"options missing in question payload: {question}"
+    assert isinstance(question["options"], list) and question["options"], f"options must be a non-empty list: {question}"
 
-    # 3) Submit using the returned word_id and first available option
     submit_payload = {
-        "word_id": q["word_id"],
-        "answer": q["options"][0],
+        "word_id": question["word_id"],
+        "answer": question["options"][0],
     }
     submit_res = client.post("/practice/synonym/answer", submit_payload)
 
