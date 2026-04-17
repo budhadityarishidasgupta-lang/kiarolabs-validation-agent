@@ -20,14 +20,20 @@ class APIClient:
         self.token = res.json()["access_token"]
 
     def get(self, path):
-        return requests.get(
+        res = requests.get(
             f"{BASE_URL}{path}",
             headers={"Authorization": f"Bearer {self.token}"}
         )
+        print("STATUS:", res.status_code)
+        print("TEXT:", res.text)
+        return res
 
     def post(self, path, data=None):
-        return requests.post(
+        res = requests.post(
             f"{BASE_URL}{path}",
             json=data or {},
             headers={"Authorization": f"Bearer {self.token}"}
         )
+        print("STATUS:", res.status_code)
+        print("TEXT:", res.text)
+        return res
