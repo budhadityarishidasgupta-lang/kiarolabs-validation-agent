@@ -2,51 +2,46 @@ from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
 
 
-def test_words_submission():
-    client = APIClient()
-    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
-
-    # 1) Fetch courses
-    courses_res = client.get("/practice/courses")
-    courses_payload = courses_res.json()
-
-    # 2) Extract first course -> first lesson -> lesson_id
+def _extract_first_lesson_id(courses_payload):
+    """Extract the first lesson_id from the courses payload returned by API."""
     courses = courses_payload.get("courses") if isinstance(courses_payload, dict) else courses_payload
     assert isinstance(courses, list) and courses, f"Courses list missing or empty: {courses_payload}"
 
     first_course = courses[0]
-    lessons = first_course.get("lessons") if isinstance(first_course, dict) else None
+    assert isinstance(first_course, dict), f"First course must be dict, got: {type(first_course).__name__}"
+
+    lessons = first_course.get("lessons")
     assert isinstance(lessons, list) and lessons, f"Lessons missing for first course: {first_course}"
 
     first_lesson = lessons[0]
-    lesson_id = first_lesson.get("lesson_id") or first_lesson.get("id")
-    assert lesson_id is not None, f"Lesson id missing in first lesson: {first_lesson}"
+    assert isinstance(first_lesson, dict), f"First lesson must be dict, got: {type(first_lesson).__name__}"
+    assert "lesson_id" in first_lesson, f"lesson_id missing in lesson payload: {first_lesson}"
 
-    # 3) Fetch question (GET with lesson_id)
-    q_res = client.get(f"/practice/synonym/question?lesson_id={lesson_id}")
-    q = q_res.json()
+    return first_lesson["lesson_id"]
 
-    # 4) Validate response
-    assert q is not None, "Synonym question response is None"
-    assert isinstance(q, dict), f"Synonym question response must be dict, got {type(q).__name__}"
-    assert "word_id" in q or "id" in q, "Synonym question missing both 'word_id' and 'id'"
 
-    word_id = q.get("word_id") or q.get("id")
-    assert word_id is not None, f"word_id resolved to None from payload: {q}"
+def test_words_submission():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
 
-    options = q.get("options")
-    correct_answer = q.get("correct_answer")
-    if correct_answer is None and isinstance(options, list) and options:
-        correct_answer = options[0]
-    assert correct_answer is not None, f"No answer available in question payload: {q}"
+    # 1) Follow UI flow: fetch courses and resolve lesson_id from API response
+    courses_res = client.get("/practice/courses")
+    courses_payload = courses_res.json()
+    lesson_id = _extract_first_lesson_id(courses_payload)
 
-    # 5) Submit answer
-    res = client.post(
-        "/practice/synonym/answer",
-        {
-            "word_id": word_id,
-            "answer": correct_answer,
-        },
-    )
+    # 2) Fetch synonym question using lesson_id from API
+    question_res = client.get(f"/practice/synonym/question?lesson_id={lesson_id}")
+    question = question_res.json()
 
-    assert res.status_code == 200
+    assert isinstance(question, dict) and question, f"Invalid synonym question payload: {question}"
+    assert "word_id" in question, f"word_id missing in synonym question payload: {question}"
+    assert "correct_answer" in question, f"correct_answer missing in synonym question payload: {question}"
+
+    # 3) Submit using UI payload structure with only API-returned fields
+    submit_payload = {
+        "word_id": question["word_id"],
+        "answer": question["correct_answer"],
+    }
+    submit_res = client.post("/practice/synonym/answer", submit_payload)
+
+    assert submit_res.status_code == 200, submit_res.text
