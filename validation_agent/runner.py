@@ -1,8 +1,8 @@
-from tests.test_auth import test_login
-from tests.test_admin_access import test_admin_unlocks_all
-from tests.test_spelling import test_spelling_attempt_recorded
-from tests.test_words import test_words_submission
-from tests.test_dashboard import test_dashboard_loads, test_dashboard_admin_unlocks_all_modules
+from validation_agent.tests.test_auth import test_login
+from validation_agent.tests.test_admin_access import test_admin_unlocks_all
+from validation_agent.tests.test_spelling import test_spelling_attempt_recorded
+from validation_agent.tests.test_words import test_words_submission
+from validation_agent.tests.test_dashboard import test_dashboard_loads, test_dashboard_admin_unlocks_all_modules
 
 def run_all():
     print("Running Validation Agent...\n")
