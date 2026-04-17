@@ -1,5 +1,5 @@
 from client import APIClient
-from config import TEST_USERS
+from validation_agent.config import TEST_USERS
 
 
 def test_dashboard_loads():
@@ -10,7 +10,8 @@ def test_dashboard_loads():
     assert res.status_code == 200
 
     data = res.json()
-    assert "spelling" in data
+    assert "modules" in data
+    assert "spelling" in data["modules"]
 
 
 def test_dashboard_admin_unlocks_all_modules():

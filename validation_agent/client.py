@@ -1,5 +1,5 @@
 import requests
-from config import BASE_URL
+from validation_agent.config import BASE_URL
 
 class APIClient:
     def __init__(self):
