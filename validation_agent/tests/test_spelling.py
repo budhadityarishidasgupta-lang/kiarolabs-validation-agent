@@ -11,10 +11,16 @@ def test_spelling_attempt_recorded():
     word_id = q.get("word_id") or q.get("id")
 
     # Submit answer
-    res = client.post("/practice/spelling/submit", {
+    response = client.post("/practice/spelling/submit", {
         "word_id": word_id,
         "answer": q.get("word") or q.get("word_audio"),
         "correct": True
     })
 
-    assert res.status_code == 200
+    assert response is not None
+    assert getattr(response, "status_code", None) == 200
+
+    # Response payload shape can vary; only verify JSON is valid when present
+    if getattr(response, "text", "").strip():
+        payload = response.json()
+        assert payload is not None
