@@ -8,9 +8,11 @@ def test_spelling_attempt_recorded():
     # Get a question
     q = client.get("/practice/spelling/question?lesson_id=1").json()
 
+    word_id = q.get("word_id") or q.get("id")
+
     # Submit answer
     res = client.post("/practice/spelling/submit", {
-        "word_id": q["word_id"],
+        "word_id": word_id,
         "answer": q["word"],
         "correct": True
     })
