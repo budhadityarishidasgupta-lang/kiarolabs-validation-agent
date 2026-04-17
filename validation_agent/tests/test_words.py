@@ -5,6 +5,8 @@ def test_words_submission():
     client = APIClient()
     client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
 
+    client.post("/practice/session/start", {"module": "synonym"})
+
     q = client.get("/practice/synonym/question").json()
     word_id = q.get("word_id") or q.get("id")
 
