@@ -49,9 +49,12 @@ def test_words_submission():
     assert "options" in question, f"options missing in question payload: {question}"
     assert isinstance(question["options"], list) and question["options"], f"options must be a non-empty list: {question}"
 
+    word_id = question["word_id"]
+    options = question["options"]
     submit_payload = {
-        "word_id": question["word_id"],
-        "answer": question["options"][0],
+        "word_id": word_id,
+        "chosen": options[0],
+        "response_ms": 1000,
     }
     submit_res = client.post("/practice/synonym/answer", submit_payload)
 
