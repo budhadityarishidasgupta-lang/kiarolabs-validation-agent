@@ -22,7 +22,7 @@ def _extract_first_lesson_id(courses_payload):
 
 def test_spelling_attempt_recorded():
     client = APIClient()
-    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+    client.login(TEST_USERS["test_admin"]["email"], TEST_USERS["test_admin"]["password"])
 
     # 1) Follow UI flow: fetch spelling courses and resolve lesson_id from API response
     courses_res = client.get("/practice/spelling/courses")
