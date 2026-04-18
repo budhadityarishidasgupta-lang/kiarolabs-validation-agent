@@ -9,7 +9,8 @@ def test_admin_can_start_mock_test_without_purchase_check():
     tests_res = client.get("/practice/math/tests")
     assert tests_res.status_code == 200, tests_res.text
 
-    tests = tests_res.json()
+    payload = tests_res.json()
+    tests = payload["tests"] if isinstance(payload, dict) else payload
     assert isinstance(tests, list) and tests, f"Expected mock tests list: {tests}"
 
     test_id = tests[0]["test_id"]
