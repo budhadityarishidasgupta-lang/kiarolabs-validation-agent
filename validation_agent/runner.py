@@ -1,13 +1,18 @@
 import pytest
 
 from validation_agent.tests.test_admin_access import test_admin_unlocks_all
-from validation_agent.tests.test_auth import test_login
+from validation_agent.tests.test_auth import (
+    test_login,
+    test_login_invalid,
+    test_repeat_login_stress,
+)
 from validation_agent.tests.test_dashboard import (
     test_dashboard_admin_unlocks_all_modules,
     test_dashboard_loads,
+    test_no_token_dashboard,
 )
 from validation_agent.tests.test_spelling import test_spelling_question_retrieval
-from validation_agent.tests.test_words import test_words_submission
+from validation_agent.tests.test_words import test_invalid_word_submission, test_words_submission
 
 
 def run_all():
@@ -15,9 +20,13 @@ def run_all():
 
     tests = [
         test_login,
+        test_repeat_login_stress,
+        test_login_invalid,
         test_admin_unlocks_all,
+        test_no_token_dashboard,
         test_spelling_question_retrieval,
         test_words_submission,
+        test_invalid_word_submission,
         test_dashboard_loads,
         test_dashboard_admin_unlocks_all_modules,
     ]
