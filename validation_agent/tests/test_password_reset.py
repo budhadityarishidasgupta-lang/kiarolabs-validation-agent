@@ -27,6 +27,21 @@ def test_reset_password_rejects_invalid_token():
     assert res.status_code == 400, res.text
 
 
+def test_direct_reset_does_not_expose_user_existence():
+    client = APIClient()
+    res = client.post(
+        "/auth/reset-password-direct",
+        {
+            "email": "unknown-direct-reset-user@example.com",
+            "new_password": "NewLearn123!",
+        },
+        token=None,
+    )
+
+    assert res.status_code == 200, res.text
+    assert res.json()["message"] == "If account exists, password updated"
+
+
 def test_admin_reset_password_requires_token():
     client = APIClient()
     res = client.post(
