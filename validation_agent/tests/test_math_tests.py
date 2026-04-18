@@ -19,3 +19,25 @@ def test_admin_can_start_mock_test_without_purchase_check():
     payload = start_res.json()
     assert payload["test_id"] == test_id
     assert isinstance(payload["questions"], list)
+
+
+def test_math_paper_submission_returns_score():
+    client = APIClient()
+    client.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
+
+    submit_res = client.post(
+        "/practice/math/submit",
+        {
+            "paper_code": "MATH_MOCK_1",
+            "answers": {
+                "q1": "A",
+                "q2": "C",
+            },
+        },
+    )
+
+    assert submit_res.status_code == 200, submit_res.text
+    payload = submit_res.json()
+    assert "score" in payload
+    assert "total" in payload
+    assert "percentage" in payload
