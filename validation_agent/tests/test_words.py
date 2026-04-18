@@ -76,3 +76,19 @@ def test_words_submission():
     submit_res = client.post("/practice/synonym/answer", submit_payload)
 
     assert submit_res.status_code == 200, submit_res.text
+
+
+def test_invalid_word_submission():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    submit_res = client.post(
+        "/practice/synonym/answer",
+        {
+            "word_id": 999999,
+            "chosen": "test",
+            "response_ms": 1000,
+        },
+    )
+
+    assert submit_res.status_code in [400, 404], submit_res.text
