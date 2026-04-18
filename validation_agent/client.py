@@ -2,6 +2,11 @@ import requests
 from validation_agent.config import BASE_URL
 
 
+def _safe_print(label, value):
+    text = str(value).encode("ascii", errors="backslashreplace").decode("ascii")
+    print(label, text)
+
+
 class APIClient:
     def __init__(self):
         self.token = None
@@ -36,7 +41,7 @@ class APIClient:
             headers=self._auth_headers(token),
         )
         print("STATUS:", res.status_code)
-        print("TEXT:", res.text)
+        _safe_print("TEXT:", res.text)
         return res
 
     def post(self, path, data=None, token=True):
@@ -46,5 +51,5 @@ class APIClient:
             headers=self._auth_headers(token),
         )
         print("STATUS:", res.status_code)
-        print("TEXT:", res.text)
+        _safe_print("TEXT:", res.text)
         return res
