@@ -12,6 +12,11 @@ from validation_agent.tests.test_dashboard import (
     test_dashboard_loads,
     test_no_token_dashboard,
 )
+from validation_agent.tests.test_password_reset import (
+    test_admin_reset_password_requires_token,
+    test_request_reset_does_not_expose_user_existence,
+    test_reset_password_rejects_invalid_token,
+)
 from validation_agent.tests.test_spelling import test_spelling_question_retrieval
 from validation_agent.tests.test_words import test_invalid_word_submission, test_words_submission
 
@@ -26,6 +31,9 @@ def run_all():
         test_admin_role_consistency,
         test_admin_unlocks_all,
         test_no_token_dashboard,
+        test_request_reset_does_not_expose_user_existence,
+        test_reset_password_rejects_invalid_token,
+        test_admin_reset_password_requires_token,
         test_spelling_question_retrieval,
         test_words_submission,
         test_invalid_word_submission,
