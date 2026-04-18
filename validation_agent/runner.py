@@ -2,6 +2,7 @@ import pytest
 
 from validation_agent.tests.test_admin_access import test_admin_unlocks_all
 from validation_agent.tests.test_auth import (
+    test_admin_role_consistency,
     test_login,
     test_login_invalid,
     test_repeat_login_stress,
@@ -22,6 +23,7 @@ def run_all():
         test_login,
         test_repeat_login_stress,
         test_login_invalid,
+        test_admin_role_consistency,
         test_admin_unlocks_all,
         test_no_token_dashboard,
         test_spelling_question_retrieval,
