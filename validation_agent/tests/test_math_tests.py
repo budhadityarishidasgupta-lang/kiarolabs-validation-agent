@@ -28,11 +28,8 @@ def test_math_paper_submission_returns_score():
     submit_res = client.post(
         "/practice/math/submit",
         {
-            "paper_code": "MATH_MOCK_1",
-            "answers": {
-                "q1": "A",
-                "q2": "C",
-            },
+            "paper_code": "MATH_PAPER_A",
+            "answers": ["1/1", "240", "A", "72", "8"],
         },
     )
 
