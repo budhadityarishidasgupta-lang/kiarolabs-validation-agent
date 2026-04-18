@@ -24,3 +24,10 @@ def test_dashboard_admin_unlocks_all_modules():
     data = res.json()
     for module in data["modules"].values():
         assert module["unlocked"] == True
+
+
+def test_no_token_dashboard():
+    client = APIClient()
+    res = client.get("/dashboard", token=None)
+
+    assert res.status_code in [401, 403]
