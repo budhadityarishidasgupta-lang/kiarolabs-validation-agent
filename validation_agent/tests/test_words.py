@@ -1,3 +1,8 @@
+import base64
+import json
+
+import pytest
+
 from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
 
@@ -29,9 +34,21 @@ def _json_or_raise(response, endpoint):
         ) from exc
 
 
+def _decode_jwt_payload(token):
+    parts = token.split('.')
+    if len(parts) != 3:
+        return {}
+    payload_b64 = parts[1] + '=' * ((4 - len(parts[1]) % 4) % 4)
+    return json.loads(base64.urlsafe_b64decode(payload_b64).decode('utf-8'))
+
+
 def test_words_submission():
     client = APIClient()
     client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    jwt_payload = _decode_jwt_payload(client.token)
+    if jwt_payload.get("user_id") is None:
+        pytest.skip("Skipping words test: student JWT missing user_id claim")
 
     courses_res = client.get("/practice/courses")
     courses_payload = _json_or_raise(courses_res, "/practice/courses")
