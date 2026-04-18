@@ -12,6 +12,7 @@ from validation_agent.tests.test_dashboard import (
     test_dashboard_loads,
     test_no_token_dashboard,
 )
+from validation_agent.tests.test_math_submission import test_math_submission
 from validation_agent.tests.test_math_tests import (
     test_admin_can_start_mock_test_without_purchase_check,
     test_math_paper_submission_returns_score,
@@ -42,6 +43,7 @@ def run_all():
         test_admin_reset_password_requires_token,
         test_admin_can_start_mock_test_without_purchase_check,
         test_math_paper_submission_returns_score,
+        test_math_submission,
         test_spelling_question_retrieval,
         test_words_submission,
         test_invalid_word_submission,
