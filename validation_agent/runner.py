@@ -14,6 +14,7 @@ from validation_agent.tests.test_dashboard import (
 )
 from validation_agent.tests.test_password_reset import (
     test_admin_reset_password_requires_token,
+    test_direct_reset_does_not_expose_user_existence,
     test_request_reset_does_not_expose_user_existence,
     test_reset_password_rejects_invalid_token,
 )
@@ -33,6 +34,7 @@ def run_all():
         test_no_token_dashboard,
         test_request_reset_does_not_expose_user_existence,
         test_reset_password_rejects_invalid_token,
+        test_direct_reset_does_not_expose_user_existence,
         test_admin_reset_password_requires_token,
         test_spelling_question_retrieval,
         test_words_submission,
