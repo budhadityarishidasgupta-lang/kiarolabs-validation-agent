@@ -27,7 +27,7 @@ export async function expectPracticeQuestion(page: Page) {
   await expect(submitButton.or(emptyState).first()).toBeVisible({ timeout: 20000 });
 
   if (await submitButton.isVisible().catch(() => false)) {
-    await expect(page.getByText(/^Question 1/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^Question 1/).first()).toBeVisible({ timeout: 10000 });
     return;
   }
 
@@ -60,5 +60,5 @@ export async function answerCurrentQuestion(page: Page, answer?: string) {
 
 export async function goToNextQuestion(page: Page) {
   await page.getByRole("button", { name: /next question/i }).click();
-  await expect(page.getByText(/^Question 2/)).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(/^Question 2/).first()).toBeVisible({ timeout: 10000 });
 }
