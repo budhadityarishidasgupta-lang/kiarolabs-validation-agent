@@ -20,10 +20,15 @@ test("manage printables can save an answer key for an existing paper", async ({ 
   const papersPayload = await papersResponse.json().catch(() => []);
   const papers = Array.isArray(papersPayload) ? papersPayload : [];
   const targetPaper =
-    papers.find((paper: any) => (paper?.answers_count ?? 0) > 0 && (paper?.questions_count ?? 0) > 0) ||
-    papers.find((paper: any) => (paper?.questions_count ?? 0) > 0);
+    papers.find(
+      (paper: any) =>
+        (paper?.questions_count ?? 0) > 0 &&
+        (paper?.answers_count ?? 0) > 0 &&
+        (paper?.answers_count ?? 0) === (paper?.questions_count ?? 0),
+    ) ||
+    null;
 
-  test.skip(!targetPaper?.paper_code, "No printable paper available for write validation.");
+  test.skip(!targetPaper?.paper_code, "No printable paper with a complete answer key is available for write validation.");
 
   const paperCode = String(targetPaper.paper_code);
 
