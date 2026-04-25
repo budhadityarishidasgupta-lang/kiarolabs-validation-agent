@@ -22,7 +22,31 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
   await textboxes.nth(1).fill(displayName);
   await textboxes.nth(2).fill("E2E Topic");
   await textboxes.nth(3).fill("beginner");
+
+  const createResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/admin/curriculum/maths/lessons") &&
+    response.request().method() === "POST",
+  );
+
+  const refreshResponsePromise = page.waitForResponse((response) =>
+    response.url().includes("/admin/curriculum/maths/lessons") &&
+    response.request().method() === "GET",
+  );
+
   await page.getByRole("button", { name: /add lesson/i }).click();
 
-  await expect(page.getByText(displayName)).toBeVisible({ timeout: 15000 });
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
+
+  const createPayload = await createResponse.json();
+  expect(createPayload?.data?.display_name).toBe(displayName);
+
+  const refreshResponse = await refreshResponsePromise;
+  expect(refreshResponse.ok()).toBeTruthy();
+
+  const refreshPayload = await refreshResponse.json();
+  const lessons = Array.isArray(refreshPayload?.data) ? refreshPayload.data : [];
+  expect(lessons.some((lesson: any) => lesson?.display_name === displayName)).toBeTruthy();
+
+  await expect(page.getByText("Lesson created")).toBeVisible({ timeout: 10000 });
 });
