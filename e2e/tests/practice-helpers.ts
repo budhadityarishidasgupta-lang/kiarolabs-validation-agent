@@ -38,7 +38,7 @@ export async function expectPracticeQuestion(page: Page) {
   });
 
   if (await submitButton.isVisible().catch(() => false)) {
-    await expect(page.getByText(/^Question 1/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^Question 1/).first()).toBeVisible({ timeout: 10000 });
     return;
   }
 
