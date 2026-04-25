@@ -19,13 +19,24 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
   }).first();
   await expect(activeMathsPanel.getByText("Create Lesson")).toBeVisible({ timeout: 15000 });
 
-  const textboxes = activeMathsPanel.locator("input:visible");
-  await expect(textboxes).toHaveCount(4, { timeout: 10000 });
+  const lessonNameField = activeMathsPanel.locator("div").filter({
+    has: activeMathsPanel.getByText("Lesson name", { exact: true }),
+  }).locator("input");
+  const displayNameField = activeMathsPanel.locator("div").filter({
+    has: activeMathsPanel.getByText("Display name", { exact: true }),
+  }).locator("input");
+  const topicField = activeMathsPanel.locator('input[placeholder="e.g. Fractions"]');
+  const difficultyField = activeMathsPanel.locator('input[placeholder="e.g. beginner"]');
 
-  await textboxes.nth(0).fill(lessonName);
-  await textboxes.nth(1).fill(displayName);
-  await textboxes.nth(2).fill("E2E Topic");
-  await textboxes.nth(3).fill("beginner");
+  await expect(lessonNameField).toBeVisible({ timeout: 10000 });
+  await expect(displayNameField).toBeVisible({ timeout: 10000 });
+  await expect(topicField).toBeVisible({ timeout: 10000 });
+  await expect(difficultyField).toBeVisible({ timeout: 10000 });
+
+  await lessonNameField.fill(lessonName);
+  await displayNameField.fill(displayName);
+  await topicField.fill("E2E Topic");
+  await difficultyField.fill("beginner");
   const addLessonButton = activeMathsPanel.getByRole("button", { name: /add lesson/i });
   await expect(addLessonButton).toBeEnabled();
 
