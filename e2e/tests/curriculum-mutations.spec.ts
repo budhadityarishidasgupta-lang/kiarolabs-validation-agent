@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { mutationsEnabled } from "./mutation-helpers";
 
-test("curriculum admin can create a maths lesson", async ({ page }) => {
+test("curriculum admin can create a maths lesson", async ({ page, request }) => {
   test.skip(!mutationsEnabled(), "Mutation tests are disabled for scheduled safety.");
 
   const uniqueSuffix = Date.now();
@@ -39,48 +39,30 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
   await expect(topicField).toHaveValue("E2E Topic");
   await expect(difficultyField).toHaveValue("beginner");
 
-  const createResult = await page.evaluate(
-    async ({ lessonName, displayName }) => {
-      const token = window.localStorage.getItem("access_token");
-      if (!token) {
-        return { ok: false, error: "Missing access token" };
-      }
+  const token = await page.evaluate(() => window.localStorage.getItem("access_token"));
+  expect(token, "Missing admin access token").toBeTruthy();
 
-      const response = await fetch("https://kiarolabs-membership-service.onrender.com/admin/curriculum/maths/lessons", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          lesson_name: lessonName,
-          display_name: displayName,
-          topic: "E2E Topic",
-          difficulty: "beginner",
-          is_active: true,
-        }),
-      });
-
-      const rawText = await response.text();
-      let payload: any = null;
-      try {
-        payload = rawText ? JSON.parse(rawText) : null;
-      } catch {
-        payload = rawText;
-      }
-
-      return {
-        ok: response.ok,
-        status: response.status,
-        payload,
-      };
+  const createResponse = await request.post(
+    "https://kiarolabs-membership-service.onrender.com/admin/curriculum/maths/lessons",
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      data: {
+        lesson_name: lessonName,
+        display_name: displayName,
+        topic: "E2E Topic",
+        difficulty: "beginner",
+        is_active: true,
+      },
     },
-    { lessonName, displayName },
   );
 
-  expect(createResult.ok, JSON.stringify(createResult)).toBeTruthy();
-  expect(createResult.payload?.data?.display_name).toBe(displayName);
+  const createPayload = await createResponse.json().catch(() => ({}));
+  expect(createResponse.ok(), JSON.stringify(createPayload)).toBeTruthy();
+  expect(createPayload?.data?.display_name).toBe(displayName);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.getByRole("tab", { name: "Curriculum" }).click();
