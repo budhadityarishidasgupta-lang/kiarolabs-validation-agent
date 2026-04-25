@@ -14,14 +14,20 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
 
   await expect(page.getByRole("tab", { name: "Maths" })).toBeVisible({ timeout: 15000 });
   await page.getByRole("tab", { name: "Maths" }).click();
-  await expect(page.getByText("Create Lesson")).toBeVisible({ timeout: 15000 });
+  const activeMathsPanel = page.locator('[data-state="active"]').filter({
+    has: page.getByText("Create Lesson"),
+  }).first();
+  await expect(activeMathsPanel.getByText("Create Lesson")).toBeVisible({ timeout: 15000 });
 
-  const textboxes = page.locator("input:visible");
+  const textboxes = activeMathsPanel.locator("input:visible");
+  await expect(textboxes).toHaveCount(4, { timeout: 10000 });
 
   await textboxes.nth(0).fill(lessonName);
   await textboxes.nth(1).fill(displayName);
   await textboxes.nth(2).fill("E2E Topic");
   await textboxes.nth(3).fill("beginner");
+  const addLessonButton = activeMathsPanel.getByRole("button", { name: /add lesson/i });
+  await expect(addLessonButton).toBeEnabled();
 
   const createResponsePromise = page.waitForResponse((response) =>
     response.url().includes("/admin/curriculum/maths/lessons") &&
@@ -33,7 +39,7 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
     response.request().method() === "GET",
   );
 
-  await page.getByRole("button", { name: /add lesson/i }).click();
+  await addLessonButton.click();
 
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
