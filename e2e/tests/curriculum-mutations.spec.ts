@@ -60,8 +60,22 @@ test("curriculum admin can create a maths lesson", async ({ page, request }) => 
     },
   );
 
-  const createPayload = await createResponse.json().catch(() => ({}));
-  expect(createResponse.ok(), JSON.stringify(createPayload)).toBeTruthy();
+  const createRawText = await createResponse.text();
+  let createPayload: any = {};
+  try {
+    createPayload = createRawText ? JSON.parse(createRawText) : {};
+  } catch {
+    createPayload = { raw: createRawText };
+  }
+
+  expect(
+    createResponse.ok(),
+    JSON.stringify({
+      status: createResponse.status(),
+      statusText: createResponse.statusText(),
+      body: createPayload,
+    }),
+  ).toBeTruthy();
   expect(createPayload?.data?.display_name).toBe(displayName);
 
   await page.reload({ waitUntil: "domcontentloaded" });
