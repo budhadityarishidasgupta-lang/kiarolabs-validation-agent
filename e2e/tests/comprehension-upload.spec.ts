@@ -48,6 +48,6 @@ test("comprehension admin can upload a CSV and see the new passage", async ({ pa
     }),
   ).toBeTruthy();
 
-  await expect(page.getByText("Upload successful")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("Upload successful").first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByText(title)).toBeVisible({ timeout: 15000 });
 });
