@@ -1,0 +1,44 @@
+name: Validation Agent
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */4 * * *"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run validation agent
+        env:
+          VALIDATION_BASE_URL: ${{ secrets.VALIDATION_BASE_URL }}
+          VALIDATION_ADMIN_EMAIL: ${{ secrets.VALIDATION_ADMIN_EMAIL }}
+          VALIDATION_ADMIN_PASSWORD: ${{ secrets.VALIDATION_ADMIN_PASSWORD }}
+          VALIDATION_TEST_ADMIN_EMAIL: ${{ secrets.VALIDATION_TEST_ADMIN_EMAIL }}
+          VALIDATION_TEST_ADMIN_PASSWORD: ${{ secrets.VALIDATION_TEST_ADMIN_PASSWORD }}
+          VALIDATION_STUDENT_EMAIL: ${{ secrets.VALIDATION_STUDENT_EMAIL }}
+          VALIDATION_STUDENT_PASSWORD: ${{ secrets.VALIDATION_STUDENT_PASSWORD }}
+          VALIDATION_FAIL_ON_FAILURE: "true"
+        run: |
+          python main.py
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-agent-reports
+          path: reports/

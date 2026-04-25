@@ -1,5 +1,6 @@
 import requests
-from validation_agent.config import BASE_URL
+
+from validation_agent.config import BASE_URL, REQUEST_TIMEOUT_SECONDS
 
 
 def _safe_print(label, value):
@@ -21,6 +22,7 @@ class APIClient:
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
             },
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
 
     def login(self, email, password):
@@ -39,6 +41,7 @@ class APIClient:
         res = requests.get(
             f"{BASE_URL}{path}",
             headers=self._auth_headers(token),
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
         print("STATUS:", res.status_code)
         _safe_print("TEXT:", res.text)
@@ -49,6 +52,7 @@ class APIClient:
             f"{BASE_URL}{path}",
             json=data or {},
             headers=self._auth_headers(token),
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
         print("STATUS:", res.status_code)
         _safe_print("TEXT:", res.text)
