@@ -19,12 +19,8 @@ test("curriculum admin can create a maths lesson", async ({ page }) => {
   }).first();
   await expect(activeMathsPanel.getByText("Create Lesson")).toBeVisible({ timeout: 15000 });
 
-  const lessonNameField = activeMathsPanel.locator("div").filter({
-    has: activeMathsPanel.getByText("Lesson name", { exact: true }),
-  }).locator("input");
-  const displayNameField = activeMathsPanel.locator("div").filter({
-    has: activeMathsPanel.getByText("Display name", { exact: true }),
-  }).locator("input");
+  const lessonNameField = activeMathsPanel.getByRole("textbox").first();
+  const displayNameField = activeMathsPanel.getByPlaceholder("Optional friendly label");
   const topicField = activeMathsPanel.locator('input[placeholder="e.g. Fractions"]');
   const difficultyField = activeMathsPanel.locator('input[placeholder="e.g. beginner"]');
 
