@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { recordMutationArtifact } from "./mutation-artifacts";
 import { mutationsEnabled } from "./mutation-helpers";
 
 test("curriculum admin can create a maths lesson", async ({ page, request }) => {
@@ -82,4 +83,10 @@ test("curriculum admin can create a maths lesson", async ({ page, request }) => 
   await page.getByRole("tab", { name: "Curriculum" }).click();
   await page.getByRole("tab", { name: "Maths" }).click();
   await expect(page.getByText(displayName)).toBeVisible({ timeout: 15000 });
+
+  recordMutationArtifact("maths_lesson_create", {
+    display_name: displayName,
+    lesson_name: lessonName,
+    lesson_code: createPayload?.data?.lesson_code,
+  });
 });

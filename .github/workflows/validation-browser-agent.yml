@@ -23,10 +23,16 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: |
           npm install
           npx playwright install --with-deps chromium
+          python -m pip install -r requirements.txt
 
       - name: Run browser validation
         env:
@@ -37,6 +43,14 @@ jobs:
         run: |
           mkdir -p reports
           npm run e2e
+
+      - name: Run optional DB verification
+        if: always()
+        env:
+          E2E_ENABLE_MUTATIONS: ${{ github.event.inputs.enable_mutations || 'false' }}
+          VALIDATION_DB_DSN: ${{ secrets.VALIDATION_DB_DSN }}
+        run: |
+          python -m validation_agent.db_verify
 
       - name: Upload browser artifacts
         if: always()

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { recordMutationArtifact } from "./mutation-artifacts";
 import { mutationsEnabled } from "./mutation-helpers";
 
 test("comprehension admin can upload a CSV and see the new passage", async ({ page }) => {
@@ -50,4 +51,8 @@ test("comprehension admin can upload a CSV and see the new passage", async ({ pa
 
   await expect(page.getByText("Upload successful").first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByText(title)).toBeVisible({ timeout: 15000 });
+
+  recordMutationArtifact("comprehension_csv_upload", {
+    title,
+  });
 });
