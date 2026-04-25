@@ -8,6 +8,7 @@ It already knows how to exercise the deployed `kiarolabs-membership-service`, an
 - structured JSON + Markdown reports
 - CI-friendly exit codes
 - suitable for scheduled GitHub Actions runs
+- Playwright browser E2E against the live frontend
 
 ## Why This Repo Should Own The Agent
 
@@ -29,7 +30,7 @@ Why:
 - words/spelling/maths flow validation
 - admin access validation
 - printable maths submission validation
-- future frontend-browser E2E expansion
+- frontend-browser E2E expansion
 
 ## Project Layout
 
@@ -93,6 +94,44 @@ This will:
   - `reports/validation-latest.md`
 - return non-zero if failures are found and `VALIDATION_FAIL_ON_FAILURE=true`
 
+## Browser E2E
+
+The repo now also includes a Playwright-based browser agent for the live frontend.
+
+Install browser dependencies:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+Set:
+
+```bash
+E2E_BASE_URL=https://kiarolabs.com
+E2E_ADMIN_EMAIL=rishi@test.com
+E2E_ADMIN_PASSWORD=your_password
+```
+
+Run:
+
+```bash
+npm run e2e
+```
+
+Current browser coverage:
+
+- admin login
+- `/admin` shell load
+- curriculum tab render
+- comprehension admin tab render
+
+Artifacts:
+
+- `playwright-report/`
+- `test-results/`
+- `reports/e2e-latest.json`
+
 ## Recommended Autonomous Mode
 
 Use GitHub Actions on a schedule and on-demand.
@@ -101,6 +140,7 @@ Recommended cadence:
 
 - every 4 hours for production smoke validation
 - manual `workflow_dispatch` after deploys
+- browser E2E twice daily or after deploys
 
 The agent should:
 
@@ -124,11 +164,11 @@ The agent should:
 
 To make this truly Chronos-like, next additions should be:
 
-1. browser E2E via Playwright
-2. endpoint inventory checks
-3. printable admin management checks
-4. comprehension upload checks
-5. proactive alert routing
+1. printable admin management browser checks
+2. comprehension upload browser checks
+3. endpoint inventory checks
+4. proactive alert routing
+5. Slack or issue creation on repeated failures
 
 ## Recommended Future Operating Model
 
