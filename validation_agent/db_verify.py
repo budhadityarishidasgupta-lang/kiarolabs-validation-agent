@@ -91,6 +91,9 @@ def run_db_verification() -> dict:
 
             try:
                 if kind == "maths_lesson_create":
+                    if payload.get("cleaned_up"):
+                        results.append({"name": f"db_{kind}", "status": "skipped", "detail": "Maths lesson cleaned up after validation"})
+                        continue
                     cur.execute(
                         """
                         SELECT lesson_code

@@ -3,6 +3,42 @@ import { expect, test } from "@playwright/test";
 import { recordMutationArtifact } from "./mutation-artifacts";
 import { mutationsEnabled } from "./mutation-helpers";
 
+const MEMBERSHIP_API = "https://kiarolabs-membership-service.onrender.com";
+
+async function cleanupE2EMathsLessons(request: any, token: string) {
+  const lessonsResponse = await request.get(`${MEMBERSHIP_API}/admin/curriculum/maths/lessons`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  expect(lessonsResponse.ok(), `Failed to list maths lessons: ${lessonsResponse.status()}`).toBeTruthy();
+  const payload = await lessonsResponse.json().catch(() => ({}));
+  const lessons = Array.isArray(payload?.data) ? payload.data : [];
+  const leaked = lessons.filter((lesson: any) => {
+    const lessonName = String(lesson?.lesson_name ?? "");
+    const displayName = String(lesson?.display_name ?? "");
+    const topic = String(lesson?.topic ?? "");
+    return /^e2e/i.test(lessonName) || /^e2e/i.test(displayName) || /^e2e/i.test(topic);
+  });
+
+  for (const lesson of leaked) {
+    const deleteResponse = await request.delete(
+      `${MEMBERSHIP_API}/admin/curriculum/maths/lessons/${lesson.lesson_id}`,
+      {
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    expect(
+      deleteResponse.ok(),
+      `Failed to delete leaked maths lesson ${lesson.lesson_id}: ${deleteResponse.status()}`,
+    ).toBeTruthy();
+  }
+}
+
 test("curriculum admin can create a maths lesson", async ({ page, request }) => {
   test.skip(!mutationsEnabled(), "Mutation tests are disabled for scheduled safety.");
 
@@ -43,50 +79,74 @@ test("curriculum admin can create a maths lesson", async ({ page, request }) => 
   const token = await page.evaluate(() => window.localStorage.getItem("access_token"));
   expect(token, "Missing admin access token").toBeTruthy();
 
-  const createResponse = await request.post(
-    "https://kiarolabs-membership-service.onrender.com/admin/curriculum/maths/lessons",
-    {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      data: {
-        lesson_name: lessonName,
-        display_name: displayName,
-        topic: "E2E Topic",
-        difficulty: "beginner",
-        is_active: true,
-      },
-    },
-  );
+  await cleanupE2EMathsLessons(request, token);
 
-  const createRawText = await createResponse.text();
-  let createPayload: any = {};
+  let createdLessonId: number | null = null;
+
   try {
-    createPayload = createRawText ? JSON.parse(createRawText) : {};
-  } catch {
-    createPayload = { raw: createRawText };
+    const createResponse = await request.post(
+      `${MEMBERSHIP_API}/admin/curriculum/maths/lessons`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        data: {
+          lesson_name: lessonName,
+          display_name: displayName,
+          topic: "E2E Topic",
+          difficulty: "beginner",
+          is_active: true,
+        },
+      },
+    );
+
+    const createRawText = await createResponse.text();
+    let createPayload: any = {};
+    try {
+      createPayload = createRawText ? JSON.parse(createRawText) : {};
+    } catch {
+      createPayload = { raw: createRawText };
+    }
+
+    expect(
+      createResponse.ok(),
+      JSON.stringify({
+        status: createResponse.status(),
+        statusText: createResponse.statusText(),
+        body: createPayload,
+      }),
+    ).toBeTruthy();
+    expect(createPayload?.data?.display_name).toBe(displayName);
+    createdLessonId = Number(createPayload?.data?.lesson_id || 0) || null;
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("tab", { name: "Curriculum" }).click();
+    await page.getByRole("tab", { name: "Maths" }).click();
+    await expect(page.getByText(displayName)).toBeVisible({ timeout: 15000 });
+
+    recordMutationArtifact("maths_lesson_create", {
+      display_name: displayName,
+      lesson_name: lessonName,
+      lesson_code: createPayload?.data?.lesson_code,
+      cleaned_up: true,
+    });
+  } finally {
+    if (createdLessonId) {
+      const deleteResponse = await request.delete(
+        `${MEMBERSHIP_API}/admin/curriculum/maths/lessons/${createdLessonId}`,
+        {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      expect(
+        deleteResponse.ok(),
+        `Failed to delete created maths lesson ${createdLessonId}: ${deleteResponse.status()}`,
+      ).toBeTruthy();
+    }
   }
-
-  expect(
-    createResponse.ok(),
-    JSON.stringify({
-      status: createResponse.status(),
-      statusText: createResponse.statusText(),
-      body: createPayload,
-    }),
-  ).toBeTruthy();
-  expect(createPayload?.data?.display_name).toBe(displayName);
-
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await page.getByRole("tab", { name: "Curriculum" }).click();
-  await page.getByRole("tab", { name: "Maths" }).click();
-  await expect(page.getByText(displayName)).toBeVisible({ timeout: 15000 });
-
-  recordMutationArtifact("maths_lesson_create", {
-    display_name: displayName,
-    lesson_name: lessonName,
-    lesson_code: createPayload?.data?.lesson_code,
-  });
 });
