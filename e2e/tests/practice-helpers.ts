@@ -26,11 +26,23 @@ export async function expectPracticeQuestion(page: Page) {
 
   await expect(submitButton.or(emptyState).first()).toBeVisible({ timeout: 20000 });
 
-  if (await emptyState.first().isVisible()) {
-    throw new Error("Practice session reached an empty state instead of loading a question.");
+  if (await submitButton.isVisible().catch(() => false)) {
+    await expect(page.getByText(/^Question 1/)).toBeVisible({ timeout: 10000 });
+    return;
   }
 
-  await expect(page.getByText(/^Question 1/)).toBeVisible({ timeout: 10000 });
+  // Some sessions briefly render an empty state before the curriculum rail auto-selects
+  // the first lesson and the question payload arrives.
+  await expect(submitButton.or(page.getByText(/^Question 1/)).first()).toBeVisible({
+    timeout: 20000,
+  });
+
+  if (await submitButton.isVisible().catch(() => false)) {
+    await expect(page.getByText(/^Question 1/)).toBeVisible({ timeout: 10000 });
+    return;
+  }
+
+  throw new Error("Practice session reached an empty state instead of loading a question.");
 }
 
 export async function answerCurrentQuestion(page: Page, answer?: string) {
