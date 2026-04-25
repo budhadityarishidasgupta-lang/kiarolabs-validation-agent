@@ -2,6 +2,11 @@ name: Validation Browser Agent
 
 on:
   workflow_dispatch:
+    inputs:
+      enable_mutations:
+        description: "Run mutation-based admin tests"
+        required: false
+        default: "false"
   schedule:
     - cron: "0 6,18 * * *"
 
@@ -28,6 +33,7 @@ jobs:
           E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
           E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
           E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          E2E_ENABLE_MUTATIONS: ${{ github.event.inputs.enable_mutations || 'false' }}
         run: |
           mkdir -p reports
           npm run e2e
