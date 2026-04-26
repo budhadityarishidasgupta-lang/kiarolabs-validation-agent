@@ -6,45 +6,24 @@ import { mutationsEnabled } from "./mutation-helpers";
 const MEMBERSHIP_API = "https://kiarolabs-membership-service.onrender.com";
 
 async function cleanupE2EMathsLessons(request: any, token: string) {
-  const lessonsResponse = await request.get(`${MEMBERSHIP_API}/admin/curriculum/maths/lessons`, {
+  const cleanupResponse = await request.delete(`${MEMBERSHIP_API}/admin/curriculum/maths/test-fixtures`, {
     headers: {
       Accept: "application/json",
       Authorization: `Bearer ${token}`,
     },
   });
-  expect(lessonsResponse.ok(), `Failed to list maths lessons: ${lessonsResponse.status()}`).toBeTruthy();
-  const payload = await lessonsResponse.json().catch(() => ({}));
-  const lessons = Array.isArray(payload?.data) ? payload.data : [];
-  const leaked = lessons.filter((lesson: any) => {
-    const lessonName = String(lesson?.lesson_name ?? "");
-    const displayName = String(lesson?.display_name ?? "");
-    const topic = String(lesson?.topic ?? "");
-    return /^e2e/i.test(lessonName) || /^e2e/i.test(displayName) || /^e2e/i.test(topic);
-  });
-
-  for (const lesson of leaked) {
-    const deleteResponse = await request.delete(
-      `${MEMBERSHIP_API}/admin/curriculum/maths/lessons/${lesson.lesson_id}`,
-      {
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    );
-    expect(
-      deleteResponse.ok(),
-      `Failed to delete leaked maths lesson ${lesson.lesson_id}: ${deleteResponse.status()}`,
-    ).toBeTruthy();
-  }
+  expect(
+    cleanupResponse.ok(),
+    `Failed to clean leaked maths fixtures: ${cleanupResponse.status()}`,
+  ).toBeTruthy();
 }
 
 test("curriculum admin can create a maths lesson", async ({ page, request }) => {
   test.skip(!mutationsEnabled(), "Mutation tests are disabled for scheduled safety.");
 
   const uniqueSuffix = Date.now();
-  const lessonName = `E2E Maths Lesson ${uniqueSuffix}`;
-  const displayName = `E2E Display ${uniqueSuffix}`;
+  const lessonName = `Validation Maths Lesson ${uniqueSuffix}`;
+  const displayName = `Validation Display ${uniqueSuffix}`;
 
   await page.goto("/admin");
   await page.getByRole("tab", { name: "Curriculum" }).click();
@@ -68,12 +47,12 @@ test("curriculum admin can create a maths lesson", async ({ page, request }) => 
 
   await lessonNameField.fill(lessonName);
   await displayNameField.fill(displayName);
-  await topicField.fill("E2E Topic");
+  await topicField.fill("Validation Topic");
   await difficultyField.fill("beginner");
 
   await expect(lessonNameField).toHaveValue(lessonName);
   await expect(displayNameField).toHaveValue(displayName);
-  await expect(topicField).toHaveValue("E2E Topic");
+  await expect(topicField).toHaveValue("Validation Topic");
   await expect(difficultyField).toHaveValue("beginner");
 
   const token = await page.evaluate(() => window.localStorage.getItem("access_token"));
@@ -95,7 +74,7 @@ test("curriculum admin can create a maths lesson", async ({ page, request }) => 
         data: {
           lesson_name: lessonName,
           display_name: displayName,
-          topic: "E2E Topic",
+          topic: "Validation Topic",
           difficulty: "beginner",
           is_active: true,
         },
