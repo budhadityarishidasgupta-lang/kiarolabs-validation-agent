@@ -3,6 +3,7 @@ import sys
 import pytest
 
 from validation_agent.config import FAIL_ON_FAILURE, REPORTS_DIR
+from validation_agent.prompting import write_fix_prompts_report
 from validation_agent.reporting import build_summary, write_json_report, write_markdown_report
 from validation_agent.tests.test_admin_access import test_admin_unlocks_all
 from validation_agent.tests.test_auth import (
@@ -13,9 +14,11 @@ from validation_agent.tests.test_auth import (
 )
 from validation_agent.tests.test_dashboard import (
     test_dashboard_admin_unlocks_all_modules,
+    test_dashboard_contract_shape,
     test_dashboard_loads,
     test_no_token_dashboard,
 )
+from validation_agent.tests.test_comprehension import test_comprehension_no_immediate_repeat
 from validation_agent.tests.test_math_submission import test_math_submission
 from validation_agent.tests.test_math_tests import (
     test_admin_can_start_mock_test_without_purchase_check,
@@ -28,7 +31,12 @@ from validation_agent.tests.test_password_reset import (
     test_reset_password_rejects_invalid_token,
 )
 from validation_agent.tests.test_spelling import test_spelling_question_retrieval
-from validation_agent.tests.test_words import test_invalid_word_submission, test_words_submission
+from validation_agent.tests.test_spelling import test_spelling_no_immediate_repeat
+from validation_agent.tests.test_words import (
+    test_invalid_word_submission,
+    test_words_no_immediate_repeat,
+    test_words_submission,
+)
 
 
 TESTS = [
@@ -46,9 +54,13 @@ TESTS = [
     test_math_paper_submission_returns_score,
     test_math_submission,
     test_spelling_question_retrieval,
+    test_spelling_no_immediate_repeat,
     test_words_submission,
+    test_words_no_immediate_repeat,
     test_invalid_word_submission,
+    test_comprehension_no_immediate_repeat,
     test_dashboard_loads,
+    test_dashboard_contract_shape,
     test_dashboard_admin_unlocks_all_modules,
 ]
 
@@ -72,10 +84,13 @@ def run_all():
     report = build_summary(results)
     json_path = write_json_report(report, REPORTS_DIR)
     md_path = write_markdown_report(report, REPORTS_DIR)
+    prompts_path = write_fix_prompts_report(report, REPORTS_DIR)
 
     print("\nReports:")
     print(f"- {json_path}")
     print(f"- {md_path}")
+    if prompts_path:
+        print(f"- {prompts_path}")
     print("\nDone.")
 
     if FAIL_ON_FAILURE and report["counts"].get("failed", 0) > 0:
