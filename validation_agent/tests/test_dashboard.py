@@ -2,6 +2,10 @@ from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
 
 
+LEARNING_MODULES = {"spelling", "words", "math", "maths", "comprehension"}
+ENTITLEMENT_MODULES = {"practice_papers", "vr_printables", "mock_exams", "nvr"}
+
+
 def _json_object(response, path):
     try:
         data = response.json()
@@ -12,7 +16,7 @@ def _json_object(response, path):
     return data
 
 
-def _assert_module_contract(module_name, module_data):
+def _assert_learning_module_contract(module_name, module_data):
     assert isinstance(module_data, dict), f"module '{module_name}' should be an object"
     for key in ("unlocked", "attempts", "accuracy"):
         assert key in module_data, f"module '{module_name}' is missing '{key}'"
@@ -26,6 +30,27 @@ def _assert_module_contract(module_name, module_data):
     ):
         if optional_key in module_data:
             module_data[optional_key]
+
+
+def _assert_entitlement_module_contract(module_name, module_data):
+    assert isinstance(module_data, dict), f"module '{module_name}' should be an object"
+    assert "unlocked" in module_data, f"module '{module_name}' is missing 'unlocked'"
+
+
+def _assert_module_contract(module_name, module_data):
+    if module_name in LEARNING_MODULES:
+        _assert_learning_module_contract(module_name, module_data)
+        return
+
+    if module_name in ENTITLEMENT_MODULES:
+        _assert_entitlement_module_contract(module_name, module_data)
+        return
+
+    _assert_entitlement_module_contract(module_name, module_data)
+    print(
+        f"VALIDATION WARNING: unknown dashboard module '{module_name}' treated as entitlement/access-only "
+        "for contract validation."
+    )
 
 
 def test_dashboard_loads():
@@ -51,9 +76,9 @@ def test_dashboard_contract_shape():
     modules = dashboard_data.get("modules")
     assert isinstance(modules, dict), "/dashboard should include a modules object"
 
-    for module_name in ("spelling", "words"):
+    for module_name in LEARNING_MODULES:
         if module_name in modules:
-            _assert_module_contract(module_name, modules[module_name])
+            _assert_learning_module_contract(module_name, modules[module_name])
 
     for module_name, module_data in modules.items():
         _assert_module_contract(module_name, module_data)

@@ -47,6 +47,10 @@ export async function expectPracticeQuestion(page: Page) {
 
 export async function answerCurrentQuestion(page: Page, answer?: string) {
   const textInput = page.locator('input[type="text"]').first();
+  const feedbackStatus = page
+    .locator('[aria-live="polite"], [role="status"]')
+    .filter({ hasText: /Not quite right|Correct/i })
+    .first();
 
   if (await textInput.isVisible().catch(() => false)) {
     await textInput.fill(answer ?? "test");
@@ -55,7 +59,7 @@ export async function answerCurrentQuestion(page: Page, answer?: string) {
   }
 
   await page.getByRole("button", { name: /submit answer/i }).click();
-  await expect(page.getByRole("status")).toBeVisible({ timeout: 10000 });
+  await expect(feedbackStatus).toBeVisible({ timeout: 10000 });
 }
 
 export async function goToNextQuestion(page: Page) {

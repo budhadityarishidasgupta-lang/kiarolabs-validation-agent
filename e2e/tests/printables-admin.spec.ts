@@ -22,7 +22,16 @@ test("manage printables tab loads and inspects a paper", async ({ page }) => {
     return;
   }
 
-  await page.getByRole("combobox").click();
+  const mathsCombobox = page
+    .getByRole("combobox")
+    .filter({ hasText: /Maths/i })
+    .locator(':not([disabled])')
+    .first();
+
+  await expect(mathsCombobox).toBeVisible({ timeout: 10000 });
+  await expect(mathsCombobox).toBeEnabled({ timeout: 10000 });
+  await mathsCombobox.click();
+
   const firstOption = page.getByRole("option").first();
   await expect(firstOption).toBeVisible({ timeout: 10000 });
   await firstOption.click();

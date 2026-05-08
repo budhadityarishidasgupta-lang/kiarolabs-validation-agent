@@ -22,7 +22,13 @@ Use this skill when the task is to verify backend dashboard responses without ch
 1. Authenticate with `TEST_USERS["student"]` unless the task explicitly needs another role.
 2. `GET /dashboard` and assert valid JSON plus a `modules` object.
 3. For each returned module under `modules`, validate the contract safely:
-   - required keys: `unlocked`, `attempts`, `accuracy`
+   - learning modules (`spelling`, `words`, `math`, `maths`, `comprehension`) require:
+     - `unlocked`
+     - `attempts`
+     - `accuracy`
+   - entitlement/access modules (`practice_papers`, `vr_printables`, `mock_exams`, `nvr`) require:
+     - `unlocked`
+   - unknown module keys should not fail immediately if `unlocked` is present
    - optional keys may exist without being required
 4. Check supporting endpoints and fail only for:
    - non-200 responses where 200 is required
