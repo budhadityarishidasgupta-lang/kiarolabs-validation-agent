@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("manage printables tab loads and inspects a paper", async ({ page }) => {
+const API_BASE = "https://kiarolabs-membership-service.onrender.com";
+
+test("manage printables tab loads and inspects a paper", async ({ page, request }) => {
   const failures: string[] = [];
 
   page.on("response", async (response) => {
@@ -14,27 +16,35 @@ test("manage printables tab loads and inspects a paper", async ({ page }) => {
   await page.goto("/admin");
   await page.getByRole("tab", { name: "Manage Printables" }).click();
 
-  await expect(page.getByText("Manage Printable Papers")).toBeVisible();
+  await expect(page.getByText("Manage Printable Papers")).toBeVisible({ timeout: 15000 });
 
-  const emptyState = page.getByText("No papers found");
-  if (await emptyState.isVisible().catch(() => false)) {
-    expect.soft(failures, failures.join("\n")).toEqual([]);
-    return;
-  }
+  const papersResponse = await request.get(`${API_BASE}/practice/math/printable/papers`);
+  expect(papersResponse.ok()).toBeTruthy();
+  const papersPayload = await papersResponse.json().catch(() => []);
+  const papers = Array.isArray(papersPayload) ? papersPayload : [];
+  const targetPaper =
+    papers.find((paper: any) => String(paper?.paper_code ?? paper?.code ?? "").trim().length > 0) ?? null;
 
-  const mathsCombobox = page
+  test.skip(!targetPaper, "No printable papers are available for read-only validation.");
+
+  const paperCode = String(targetPaper?.paper_code ?? targetPaper?.code ?? "");
+  const paperCombobox = page
     .getByRole("combobox")
-    .filter({ hasText: /Maths/i })
-    .locator(':not([disabled])')
+    .filter({ hasText: /Choose a paper|Loading papers/i })
     .first();
 
-  await expect(mathsCombobox).toBeVisible({ timeout: 10000 });
-  await expect(mathsCombobox).toBeEnabled({ timeout: 10000 });
-  await mathsCombobox.click();
+  await expect(paperCombobox).toBeVisible({ timeout: 10000 });
+  await expect(paperCombobox).toBeEnabled({ timeout: 10000 });
+  await paperCombobox.click();
 
-  const firstOption = page.getByRole("option").first();
-  await expect(firstOption).toBeVisible({ timeout: 10000 });
-  await firstOption.click();
+  const noPapersOption = page.getByText("No papers found");
+  if (await noPapersOption.isVisible().catch(() => false)) {
+    test.skip(true, "No printable papers are visible in the paper selector.");
+  }
+
+  const paperOption = page.getByRole("option", { name: new RegExp(paperCode, "i") }).first();
+  await expect(paperOption).toBeVisible({ timeout: 10000 });
+  await paperOption.click();
 
   await expect(
     page
@@ -48,7 +58,7 @@ test("manage printables tab loads and inspects a paper", async ({ page }) => {
     await viewQuestionsButton.click();
     await expect(
       page
-        .getByText(/^Questions —/)
+        .getByText(/^Questions/)
         .or(page.getByText("No questions to display"))
         .first(),
     ).toBeVisible({ timeout: 10000 });

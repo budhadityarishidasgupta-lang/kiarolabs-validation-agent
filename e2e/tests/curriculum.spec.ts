@@ -9,14 +9,15 @@ test("curriculum admin renders module tabs and overview", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Words" })).toBeVisible();
   await page.getByRole("tab", { name: "Maths" }).click();
 
-  const activeMathsPanel = page.locator('[data-state="active"]').filter({
-    has: page.getByText("Create Lesson").or(page.getByText("Current Lessons")),
+  const activeMathsPanel = page.getByRole("tabpanel").filter({
+    has: page.getByText("Maths structure"),
   }).first();
 
+  await expect(activeMathsPanel.getByText("Maths structure")).toBeVisible({ timeout: 15000 });
   await expect(
     activeMathsPanel
-      .getByText("Create Lesson")
-      .or(activeMathsPanel.getByText("Current Lessons"))
+      .getByText("Select a lesson to view its details.")
+      .or(activeMathsPanel.getByText("Lesson Content"))
       .first(),
   ).toBeVisible({ timeout: 15000 });
 });
