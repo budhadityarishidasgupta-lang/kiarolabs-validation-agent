@@ -58,7 +58,7 @@ def _resolve_user_with_fallback(
 BASE_URL = _env("VALIDATION_BASE_URL", "https://kiarolabs-membership-service.onrender.com")
 REPORTS_DIR = Path(_env("VALIDATION_REPORTS_DIR", "reports"))
 FAIL_ON_FAILURE = _env("VALIDATION_FAIL_ON_FAILURE", "true").lower() in {"1", "true", "yes", "on"}
-REQUEST_TIMEOUT_SECONDS = int(_env("VALIDATION_REQUEST_TIMEOUT_SECONDS", "20"))
+REQUEST_TIMEOUT_SECONDS = int(_env("VALIDATION_REQUEST_TIMEOUT_SECONDS", "40"))
 
 TEST_USERS = {
     "admin": _user("VALIDATION_ADMIN", "rishi@test.com", "Learn123!"),

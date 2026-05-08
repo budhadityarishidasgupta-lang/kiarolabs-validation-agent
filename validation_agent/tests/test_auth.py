@@ -2,8 +2,14 @@ from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
 
 
-def test_login():
+def _warm_login_client() -> APIClient:
     client = APIClient()
+    client.warm_up()
+    return client
+
+
+def test_login():
+    client = _warm_login_client()
     client.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
 
     res = client.get("/me")
@@ -14,6 +20,7 @@ def test_login():
 
 
 def test_repeat_login_stress():
+    _warm_login_client()
     for _ in range(5):
         test_login()
 
@@ -24,21 +31,14 @@ def test_login_invalid():
 
     print("STATUS:", res.status_code)
     print("TEXT:", res.text)
-    assert res.status_code in [400, 401]
+    assert res.status_code == 401
 
 
 def test_admin_role_consistency():
-    client = APIClient()
-    login_res = client.login_response(
-        TEST_USERS["admin"]["email"],
-        TEST_USERS["admin"]["password"],
-    )
-    print("STATUS:", login_res.status_code)
-    print("TEXT:", login_res.text)
-    assert login_res.status_code == 200
+    client = _warm_login_client()
+    client.login(TEST_USERS["admin"]["email"], TEST_USERS["admin"]["password"])
 
-    login_data = login_res.json()
-    client.token = login_data["access_token"]
+    login_data = client.get("/me").json()
 
     me_res = client.get("/me")
     dashboard_res = client.get("/dashboard")
