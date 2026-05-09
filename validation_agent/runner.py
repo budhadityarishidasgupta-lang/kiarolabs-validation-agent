@@ -33,6 +33,7 @@ from validation_agent.tests.test_password_reset import (
 from validation_agent.tests.test_spelling import test_spelling_question_retrieval
 from validation_agent.tests.test_spelling import test_spelling_no_immediate_repeat
 from validation_agent.tests.test_words import (
+    test_words_answer_integrity,
     test_invalid_word_submission,
     test_words_no_immediate_repeat,
     test_words_submission,
@@ -56,6 +57,7 @@ TESTS = [
     test_spelling_question_retrieval,
     test_spelling_no_immediate_repeat,
     test_words_submission,
+    test_words_answer_integrity,
     test_words_no_immediate_repeat,
     test_invalid_word_submission,
     test_comprehension_no_immediate_repeat,

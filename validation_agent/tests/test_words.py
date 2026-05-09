@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 
 import pytest
 
@@ -65,6 +66,76 @@ def _assert_optional_encouragement(item):
         assert item["encouragement_message"].strip(), item
 
 
+def _format_word_integrity_context(*, word_id, word, options, correct_answer):
+    return (
+        f"word_id={word_id}, word={word!r}, options={options!r}, "
+        f"correct_answer={correct_answer!r}"
+    )
+
+
+def _assert_words_options_integrity(*, word_id, word, options):
+    assert isinstance(options, list) and options, (
+        "WordSprint options must be a non-empty list: "
+        + _format_word_integrity_context(
+            word_id=word_id,
+            word=word,
+            options=options,
+            correct_answer=None,
+        )
+    )
+
+    seen = set()
+    for option in options:
+        assert isinstance(option, str), (
+            "WordSprint option must be a string: "
+            + _format_word_integrity_context(
+                word_id=word_id,
+                word=word,
+                options=options,
+                correct_answer=None,
+            )
+        )
+        cleaned = option.strip()
+        lowered = cleaned.lower()
+        assert cleaned, (
+            "WordSprint option must not be blank: "
+            + _format_word_integrity_context(
+                word_id=word_id,
+                word=word,
+                options=options,
+                correct_answer=None,
+            )
+        )
+        assert not re.fullmatch(r"\d+", cleaned), (
+            "WordSprint option must not be numeric-only junk: "
+            + _format_word_integrity_context(
+                word_id=word_id,
+                word=word,
+                options=options,
+                correct_answer=None,
+            )
+        )
+        assert lowered != str(word or "").strip().lower(), (
+            "WordSprint option must not equal the headword: "
+            + _format_word_integrity_context(
+                word_id=word_id,
+                word=word,
+                options=options,
+                correct_answer=None,
+            )
+        )
+        assert lowered not in seen, (
+            "WordSprint options must not contain case-insensitive duplicates: "
+            + _format_word_integrity_context(
+                word_id=word_id,
+                word=word,
+                options=options,
+                correct_answer=None,
+            )
+        )
+        seen.add(lowered)
+
+
 def test_words_submission():
     client = APIClient()
     client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
@@ -99,6 +170,67 @@ def test_words_submission():
     submit_res = client.post("/practice/synonym/answer", submit_payload)
 
     assert submit_res.status_code == 200, submit_res.text
+
+
+def test_words_answer_integrity():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    jwt_payload = _decode_jwt_payload(client.token)
+    if jwt_payload.get("user_id") is None:
+        pytest.skip("Skipping words integrity test: student JWT missing user_id claim")
+
+    courses_res = client.get("/practice/courses")
+    courses_payload = _json_or_raise(courses_res, "/practice/courses")
+    lesson_id = _extract_first_lesson_id(courses_payload)
+
+    start_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
+    start_payload = _json_or_raise(start_res, f"/practice/session/start?lesson_id={lesson_id}")
+
+    assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
+    question = start_payload.get("question")
+    assert isinstance(question, dict) and question, f"Invalid question payload: {question}"
+
+    word_id = question.get("word_id")
+    word = question.get("word")
+    options = question.get("options")
+
+    assert word_id is not None, f"word_id missing in question payload: {question}"
+    assert isinstance(word, str) and word.strip(), f"word missing in question payload: {question}"
+    _assert_words_options_integrity(word_id=word_id, word=word, options=options)
+
+    submit_res = client.post(
+        "/practice/synonym/answer",
+        {
+            "word_id": word_id,
+            "chosen": "__validation_wrong__",
+            "response_ms": 1000,
+        },
+    )
+    assert submit_res.status_code == 200, submit_res.text
+
+    submit_payload = _json_or_raise(submit_res, "/practice/synonym/answer")
+    correct_answer = submit_payload.get("correct_answer")
+    assert isinstance(correct_answer, str) and correct_answer.strip(), (
+        "WordSprint submit response missing correct_answer: "
+        + _format_word_integrity_context(
+            word_id=word_id,
+            word=word,
+            options=options,
+            correct_answer=correct_answer,
+        )
+    )
+
+    normalized_options = {str(option).strip().lower() for option in options}
+    assert correct_answer.strip().lower() in normalized_options, (
+        "WordSprint correct_answer was not present in displayed options: "
+        + _format_word_integrity_context(
+            word_id=word_id,
+            word=word,
+            options=options,
+            correct_answer=correct_answer,
+        )
+    )
 
 
 def test_invalid_word_submission():
