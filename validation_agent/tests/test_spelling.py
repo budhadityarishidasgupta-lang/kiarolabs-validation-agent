@@ -40,8 +40,40 @@ def _extract_lesson_ids(courses_payload):
 
 def _assert_optional_encouragement(item):
     if "encouragement_message" in item:
-        assert isinstance(item["encouragement_message"], str), item
-        assert item["encouragement_message"].strip(), item
+        value = item["encouragement_message"]
+        assert value is None or (isinstance(value, str) and value.strip()), item
+
+
+def _assert_spelling_review_contract(question):
+    is_review = bool(question.get("is_review"))
+    session_state = question.get("session_state")
+    assert isinstance(session_state, dict), f"session_state missing or invalid: {question}"
+    assert session_state.get("is_review") is is_review, f"session_state.is_review mismatch: {question}"
+
+    encouragement = question.get("encouragement_message")
+    review_reason = question.get("review_reason")
+    session_review_reason = session_state.get("review_reason")
+
+    if is_review:
+        assert isinstance(encouragement, str) and encouragement.strip(), (
+            f"Review spelling question missing encouragement_message: {question}"
+        )
+        assert isinstance(review_reason, str) and review_reason.strip(), (
+            f"Review spelling question missing review_reason: {question}"
+        )
+        assert session_review_reason == review_reason, (
+            f"session_state.review_reason mismatch: {question}"
+        )
+    else:
+        assert encouragement is None, (
+            f"Ordinary spelling question leaked encouragement_message: {question}"
+        )
+        assert review_reason is None, (
+            f"Ordinary spelling question leaked review_reason: {question}"
+        )
+        assert session_review_reason is None, (
+            f"Ordinary spelling question leaked session_state.review_reason: {question}"
+        )
 
 
 def _submit_wrong_spelling_answer(client: APIClient, lesson_id, question):
@@ -77,6 +109,10 @@ def test_spelling_question_retrieval():
     assert isinstance(question, dict) and question, f"Invalid spelling question payload: {question}"
     assert "word_id" in question, f"word_id missing in spelling question payload: {question}"
     assert "masked_word" in question, f"masked_word missing in spelling question payload: {question}"
+    assert question.get("example_sentence") is None, (
+        f"Spelling question leaked example_sentence before submit: {question}"
+    )
+    _assert_spelling_review_contract(question)
 
 
 def test_spelling_no_immediate_repeat():
@@ -101,10 +137,11 @@ def test_spelling_no_immediate_repeat():
         if not isinstance(first_question, dict) or first_question.get("word_id") is None:
             continue
 
-        _assert_optional_encouragement(first_question)
-        assert "encouragement_message" not in first_question, (
-            f"New spelling question unexpectedly included encouragement_message: {first_question}"
+        assert first_question.get("example_sentence") is None, (
+            f"Spelling question leaked example_sentence before submit: {first_question}"
         )
+        _assert_optional_encouragement(first_question)
+        _assert_spelling_review_contract(first_question)
 
         first_word_id = first_question["word_id"]
         _submit_wrong_spelling_answer(client, lesson_id, first_question)
@@ -113,7 +150,11 @@ def test_spelling_no_immediate_repeat():
         assert second_res.status_code == 200, second_res.text
         second_question = second_res.json()
         assert isinstance(second_question, dict) and second_question.get("word_id") is not None, second_question
+        assert second_question.get("example_sentence") is None, (
+            f"Spelling question leaked example_sentence before submit: {second_question}"
+        )
         _assert_optional_encouragement(second_question)
+        _assert_spelling_review_contract(second_question)
 
         if second_question["word_id"] == first_word_id:
             raise AssertionError(
@@ -132,7 +173,11 @@ def test_spelling_no_immediate_repeat():
             assert next_res.status_code == 200, next_res.text
             next_question = next_res.json()
             assert isinstance(next_question, dict) and next_question.get("word_id") is not None, next_question
+            assert next_question.get("example_sentence") is None, (
+                f"Spelling question leaked example_sentence before submit: {next_question}"
+            )
             _assert_optional_encouragement(next_question)
+            _assert_spelling_review_contract(next_question)
 
             next_word_id = next_question["word_id"]
             if next_word_id == first_word_id:
@@ -154,7 +199,11 @@ def test_spelling_no_immediate_repeat():
             assert return_res.status_code == 200, return_res.text
             return_question = return_res.json()
             assert isinstance(return_question, dict) and return_question.get("word_id") is not None, return_question
+            assert return_question.get("example_sentence") is None, (
+                f"Spelling question leaked example_sentence before submit: {return_question}"
+            )
             _assert_optional_encouragement(return_question)
+            _assert_spelling_review_contract(return_question)
 
             if return_question["word_id"] == first_word_id and "encouragement_message" in return_question:
                 assert return_question["encouragement_message"].strip(), return_question
