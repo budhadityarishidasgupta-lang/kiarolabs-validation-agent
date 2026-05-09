@@ -44,6 +44,22 @@ def _assert_optional_encouragement(item):
         assert item["encouragement_message"].strip(), item
 
 
+def _submit_wrong_spelling_answer(client: APIClient, lesson_id, question):
+    payload = {
+        "lesson_id": lesson_id,
+        "word_id": question["word_id"],
+        "answer": "__validation_wrong__",
+        "response_ms": 1000,
+    }
+    if question.get("question_id") is not None:
+        payload["question_id"] = question["question_id"]
+    if question.get("session_id") is not None:
+        payload["session_id"] = question["session_id"]
+
+    submit_res = client.post("/practice/spelling/answer", payload)
+    assert submit_res.status_code == 200, submit_res.text
+
+
 def test_spelling_question_retrieval():
     client = APIClient()
     client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
@@ -86,20 +102,12 @@ def test_spelling_no_immediate_repeat():
             continue
 
         _assert_optional_encouragement(first_question)
+        assert "encouragement_message" not in first_question, (
+            f"New spelling question unexpectedly included encouragement_message: {first_question}"
+        )
 
-        submit_payload = {
-            "lesson_id": lesson_id,
-            "word_id": first_question["word_id"],
-            "answer": "__validation_wrong__",
-            "response_ms": 1000,
-        }
-        if first_question.get("question_id") is not None:
-            submit_payload["question_id"] = first_question["question_id"]
-        if first_question.get("session_id") is not None:
-            submit_payload["session_id"] = first_question["session_id"]
-
-        submit_res = client.post("/practice/spelling/answer", submit_payload)
-        assert submit_res.status_code == 200, submit_res.text
+        first_word_id = first_question["word_id"]
+        _submit_wrong_spelling_answer(client, lesson_id, first_question)
 
         second_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
         assert second_res.status_code == 200, second_res.text
@@ -107,34 +115,53 @@ def test_spelling_no_immediate_repeat():
         assert isinstance(second_question, dict) and second_question.get("word_id") is not None, second_question
         _assert_optional_encouragement(second_question)
 
-        if second_question["word_id"] != first_question["word_id"]:
-            return
-
-        second_submit_payload = {
-            "lesson_id": lesson_id,
-            "word_id": second_question["word_id"],
-            "answer": "__validation_wrong__",
-            "response_ms": 1000,
-        }
-        if second_question.get("question_id") is not None:
-            second_submit_payload["question_id"] = second_question["question_id"]
-        if second_question.get("session_id") is not None:
-            second_submit_payload["session_id"] = second_question["session_id"]
-
-        second_submit_res = client.post("/practice/spelling/answer", second_submit_payload)
-        assert second_submit_res.status_code == 200, second_submit_res.text
-
-        third_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-        assert third_res.status_code == 200, third_res.text
-        third_question = third_res.json()
-        assert isinstance(third_question, dict) and third_question.get("word_id") is not None, third_question
-        _assert_optional_encouragement(third_question)
-
-        if third_question["word_id"] != second_question["word_id"]:
+        if second_question["word_id"] == first_word_id:
             raise AssertionError(
                 f"Immediate spelling repeat violation for lesson_id={lesson_id}: "
-                f"word_id {first_question['word_id']} repeated immediately even though "
-                f"another word {third_question['word_id']} was available."
+                f"word_id {first_word_id} repeated immediately after a wrong answer."
             )
+
+        seen_word_ids = {first_word_id, second_question["word_id"]}
+        first_word_returned = False
+        return_question = None
+        current_question = second_question
+
+        for _ in range(4):
+            _submit_wrong_spelling_answer(client, lesson_id, current_question)
+            next_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
+            assert next_res.status_code == 200, next_res.text
+            next_question = next_res.json()
+            assert isinstance(next_question, dict) and next_question.get("word_id") is not None, next_question
+            _assert_optional_encouragement(next_question)
+
+            next_word_id = next_question["word_id"]
+            if next_word_id == first_word_id:
+                first_word_returned = True
+                return_question = next_question
+                break
+
+            seen_word_ids.add(next_word_id)
+            current_question = next_question
+
+        if len(seen_word_ids) >= 5:
+            assert not first_word_returned, (
+                f"Cooldown violation for lesson_id={lesson_id}: word_id {first_word_id} "
+                "returned within the next 4 questions even though at least 5 lesson words were available."
+            )
+
+            _submit_wrong_spelling_answer(client, lesson_id, current_question)
+            return_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
+            assert return_res.status_code == 200, return_res.text
+            return_question = return_res.json()
+            assert isinstance(return_question, dict) and return_question.get("word_id") is not None, return_question
+            _assert_optional_encouragement(return_question)
+
+            if return_question["word_id"] == first_word_id and "encouragement_message" in return_question:
+                assert return_question["encouragement_message"].strip(), return_question
+            return
+
+        if first_word_returned and "encouragement_message" in return_question:
+            assert return_question["encouragement_message"].strip(), return_question
+            return
 
     pytest.skip("Skipping spelling anti-repeat test: no suitable multi-item lesson found.")

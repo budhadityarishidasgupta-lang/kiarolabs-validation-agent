@@ -1,0 +1,7 @@
+interface:
+  display_name: "WordSprint Runtime Validator"
+  short_description: "Validate deployed runtime behavior and user flows."
+  default_prompt: "Use $wordsprint-runtime-validator to check this deployment for runtime regressions."
+
+policy:
+  allow_implicit_invocation: true
