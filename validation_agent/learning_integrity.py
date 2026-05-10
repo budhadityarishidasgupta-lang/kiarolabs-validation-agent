@@ -66,7 +66,7 @@ def describe_result(name: str, status: str, detail: str = "") -> dict:
 
 def assert_no_answer_leakage(item: dict, *, context: str):
     example_sentence = item.get("example_sentence")
-    assert example_sentence in {None, "", []}, (
+    assert example_sentence is None or example_sentence == "" or example_sentence == [], (
         f"{context}: pre-submit payload leaked example_sentence: {item}"
     )
 

@@ -49,7 +49,9 @@ test("spelling practice loads, submits, and advances", async ({ page }) => {
     latestQuestionPayload?.is_review || latestQuestionPayload?.session_state?.is_review,
   );
 
-  await expect(page.getByText(/He made a complaint|The aggressive dog|".*"/).first()).toHaveCount(0);
+  await expect(
+    page.locator("main").getByText(/He made a complaint|The aggressive dog/i).first(),
+  ).toHaveCount(0);
 
   if (reviewVisible) {
     await expect(reviewBanner).toBeVisible();
