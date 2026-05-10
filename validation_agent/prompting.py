@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from validation_agent.learning_integrity import describe_result
+
 
 DEFAULT_CONSTRAINTS = [
     "no schema change unless explicitly required",
@@ -7,17 +9,6 @@ DEFAULT_CONSTRAINTS = [
     "no unrelated refactor",
     "preserve app isolation",
 ]
-
-
-def _severity_for_failure(name: str, detail: str) -> str:
-    lowered = f"{name} {detail}".lower()
-    if "dashboard" in lowered or "contract" in lowered:
-        return "high"
-    if "repeat" in lowered or "resume" in lowered:
-        return "high"
-    if "401" in lowered or "403" in lowered or "500" in lowered:
-        return "high"
-    return "medium"
 
 
 def _failure_profile(name: str, detail: str) -> dict:
@@ -134,7 +125,9 @@ def _build_prompt_block(result: dict) -> str:
     name = result.get("name", "unknown_failure")
     detail = result.get("detail", "") or ""
     profile = _failure_profile(name, detail)
-    severity = _severity_for_failure(name, detail)
+    metadata = describe_result(name, result.get("status", "failed"), detail)
+    severity = metadata["severity"]
+    module = metadata["module"]
 
     files = profile["files"]
     files_text = ", ".join(f"`{path}`" for path in files) if files else "Unknown"
@@ -156,6 +149,7 @@ def _build_prompt_block(result: dict) -> str:
         "",
         f"- Title: `{profile['title']}`",
         f"- Severity: `{severity}`",
+        f"- Module: `{module}`",
         f"- Likely repo: `{profile['repo']}`",
         f"- Likely files: {files_text}",
         f"- Observed failure: `{name}: {detail}`",
@@ -176,8 +170,11 @@ def _build_prompt_block(result: dict) -> str:
 
 
 def write_fix_prompts_report(report: dict, reports_dir: Path) -> Path | None:
-    failures = [result for result in report.get("results", []) if result.get("status") == "failed"]
-    if not failures:
+    findings = [
+        result for result in report.get("results", [])
+        if result.get("status") in {"failed", "warned"}
+    ]
+    if not findings:
         return None
 
     reports_dir.mkdir(parents=True, exist_ok=True)
@@ -187,13 +184,13 @@ def write_fix_prompts_report(report: dict, reports_dir: Path) -> Path | None:
         "# Validation Fix Prompts",
         "",
         f"- Generated: `{report.get('generated_at', '')}`",
-        f"- Failure count: `{len(failures)}`",
+        f"- Finding count: `{len(findings)}`",
         "",
         "Use these prompts to create focused follow-up work in the likely repo without broad refactors.",
         "",
     ]
 
-    for failure in failures:
+    for failure in findings:
         lines.append(_build_prompt_block(failure))
 
     path.write_text("\n".join(lines), encoding="utf-8")

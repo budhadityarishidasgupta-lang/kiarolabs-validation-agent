@@ -1,5 +1,10 @@
 from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
+from validation_agent.learning_integrity import (
+    assert_no_answer_leakage,
+    assert_progression_advances,
+    warn_if_review_distribution_excessive,
+)
 import pytest
 
 
@@ -76,6 +81,18 @@ def _assert_spelling_review_contract(question):
         )
 
 
+def _get_spelling_question(client: APIClient, lesson_id):
+    question_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
+    if question_res.status_code == 400 and "User not provisioned" in question_res.text:
+        pytest.skip("Skipping spelling test: user is not provisioned for spelling.")
+    assert question_res.status_code == 200, question_res.text
+    question = question_res.json()
+    assert isinstance(question, dict) and question.get("word_id") is not None, question
+    assert_no_answer_leakage(question, context=f"spelling lesson_id={lesson_id}")
+    _assert_spelling_review_contract(question)
+    return question
+
+
 def _submit_wrong_spelling_answer(client: APIClient, lesson_id, question):
     payload = {
         "lesson_id": lesson_id,
@@ -100,19 +117,26 @@ def test_spelling_question_retrieval():
     courses_payload = courses_res.json()
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    question_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-    question = question_res.json()
-    if question_res.status_code == 400 and "User not provisioned" in question_res.text:
-        pytest.skip("Skipping spelling test: user is not provisioned for spelling.")
-
-    assert question_res.status_code == 200, question_res.text
+    question = _get_spelling_question(client, lesson_id)
     assert isinstance(question, dict) and question, f"Invalid spelling question payload: {question}"
     assert "word_id" in question, f"word_id missing in spelling question payload: {question}"
     assert "masked_word" in question, f"masked_word missing in spelling question payload: {question}"
-    assert question.get("example_sentence") is None, (
-        f"Spelling question leaked example_sentence before submit: {question}"
-    )
-    _assert_spelling_review_contract(question)
+
+
+def test_spelling_learning_integrity():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    courses_res = client.get("/practice/spelling/courses")
+    courses_payload = courses_res.json()
+    lesson_id = _extract_first_lesson_id(courses_payload)
+
+    first_question = _get_spelling_question(client, lesson_id)
+    assert first_question.get("masked_word"), f"masked_word missing in spelling payload: {first_question}"
+
+    _submit_wrong_spelling_answer(client, lesson_id, first_question)
+    second_question = _get_spelling_question(client, lesson_id)
+    assert_progression_advances(first_question, second_question, context=f"spelling lesson_id={lesson_id}")
 
 
 def test_spelling_no_immediate_repeat():
@@ -127,34 +151,17 @@ def test_spelling_no_immediate_repeat():
         pytest.skip("Skipping spelling anti-repeat test: no spelling lessons available.")
 
     for lesson_id in lesson_ids[:10]:
-        first_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-        if first_res.status_code == 400 and "User not provisioned" in first_res.text:
-            pytest.skip("Skipping spelling anti-repeat test: user is not provisioned for spelling.")
-        if first_res.status_code != 200:
+        try:
+            first_question = _get_spelling_question(client, lesson_id)
+        except AssertionError:
             continue
-
-        first_question = first_res.json()
-        if not isinstance(first_question, dict) or first_question.get("word_id") is None:
-            continue
-
-        assert first_question.get("example_sentence") is None, (
-            f"Spelling question leaked example_sentence before submit: {first_question}"
-        )
-        _assert_optional_encouragement(first_question)
-        _assert_spelling_review_contract(first_question)
 
         first_word_id = first_question["word_id"]
         _submit_wrong_spelling_answer(client, lesson_id, first_question)
 
-        second_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-        assert second_res.status_code == 200, second_res.text
-        second_question = second_res.json()
-        assert isinstance(second_question, dict) and second_question.get("word_id") is not None, second_question
-        assert second_question.get("example_sentence") is None, (
-            f"Spelling question leaked example_sentence before submit: {second_question}"
-        )
+        second_question = _get_spelling_question(client, lesson_id)
         _assert_optional_encouragement(second_question)
-        _assert_spelling_review_contract(second_question)
+        assert_progression_advances(first_question, second_question, context=f"spelling lesson_id={lesson_id}")
 
         if second_question["word_id"] == first_word_id:
             raise AssertionError(
@@ -169,15 +176,9 @@ def test_spelling_no_immediate_repeat():
 
         for _ in range(4):
             _submit_wrong_spelling_answer(client, lesson_id, current_question)
-            next_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-            assert next_res.status_code == 200, next_res.text
-            next_question = next_res.json()
-            assert isinstance(next_question, dict) and next_question.get("word_id") is not None, next_question
-            assert next_question.get("example_sentence") is None, (
-                f"Spelling question leaked example_sentence before submit: {next_question}"
-            )
+            next_question = _get_spelling_question(client, lesson_id)
             _assert_optional_encouragement(next_question)
-            _assert_spelling_review_contract(next_question)
+            assert_progression_advances(current_question, next_question, context=f"spelling lesson_id={lesson_id}")
 
             next_word_id = next_question["word_id"]
             if next_word_id == first_word_id:
@@ -195,15 +196,8 @@ def test_spelling_no_immediate_repeat():
             )
 
             _submit_wrong_spelling_answer(client, lesson_id, current_question)
-            return_res = client.get(f"/practice/spelling/question?lesson_id={lesson_id}")
-            assert return_res.status_code == 200, return_res.text
-            return_question = return_res.json()
-            assert isinstance(return_question, dict) and return_question.get("word_id") is not None, return_question
-            assert return_question.get("example_sentence") is None, (
-                f"Spelling question leaked example_sentence before submit: {return_question}"
-            )
+            return_question = _get_spelling_question(client, lesson_id)
             _assert_optional_encouragement(return_question)
-            _assert_spelling_review_contract(return_question)
 
             if return_question["word_id"] == first_word_id and "encouragement_message" in return_question:
                 assert return_question["encouragement_message"].strip(), return_question
@@ -214,3 +208,26 @@ def test_spelling_no_immediate_repeat():
             return
 
     pytest.skip("Skipping spelling anti-repeat test: no suitable multi-item lesson found.")
+
+
+def test_spelling_review_distribution_warn():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    courses_res = client.get("/practice/spelling/courses")
+    courses_payload = courses_res.json()
+    lesson_id = _extract_first_lesson_id(courses_payload)
+
+    observed_questions = []
+    current_question = _get_spelling_question(client, lesson_id)
+    observed_questions.append(current_question)
+
+    for _ in range(5):
+        _submit_wrong_spelling_answer(client, lesson_id, current_question)
+        current_question = _get_spelling_question(client, lesson_id)
+        observed_questions.append(current_question)
+
+    warn_if_review_distribution_excessive(
+        observed_questions,
+        context=f"spelling lesson_id={lesson_id}",
+    )

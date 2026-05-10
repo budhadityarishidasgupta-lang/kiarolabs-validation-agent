@@ -6,6 +6,13 @@ import pytest
 
 from validation_agent.client import APIClient
 from validation_agent.config import TEST_USERS
+from validation_agent.learning_integrity import (
+    assert_answer_in_options,
+    assert_no_answer_leakage,
+    assert_options_integrity,
+    assert_progression_advances,
+    warn_if_review_distribution_excessive,
+)
 
 
 def _extract_first_lesson_id(courses_payload):
@@ -74,66 +81,22 @@ def _format_word_integrity_context(*, word_id, word, options, correct_answer):
 
 
 def _assert_words_options_integrity(*, word_id, word, options):
-    assert isinstance(options, list) and options, (
-        "WordSprint options must be a non-empty list: "
-        + _format_word_integrity_context(
-            word_id=word_id,
-            word=word,
-            options=options,
-            correct_answer=None,
-        )
+    assert_options_integrity(
+        item_id=word_id,
+        headword=word,
+        options=options,
+        context="words",
     )
 
-    seen = set()
-    for option in options:
-        assert isinstance(option, str), (
-            "WordSprint option must be a string: "
-            + _format_word_integrity_context(
-                word_id=word_id,
-                word=word,
-                options=options,
-                correct_answer=None,
-            )
-        )
-        cleaned = option.strip()
-        lowered = cleaned.lower()
-        assert cleaned, (
-            "WordSprint option must not be blank: "
-            + _format_word_integrity_context(
-                word_id=word_id,
-                word=word,
-                options=options,
-                correct_answer=None,
-            )
-        )
-        assert not re.fullmatch(r"\d+", cleaned), (
-            "WordSprint option must not be numeric-only junk: "
-            + _format_word_integrity_context(
-                word_id=word_id,
-                word=word,
-                options=options,
-                correct_answer=None,
-            )
-        )
-        assert lowered != str(word or "").strip().lower(), (
-            "WordSprint option must not equal the headword: "
-            + _format_word_integrity_context(
-                word_id=word_id,
-                word=word,
-                options=options,
-                correct_answer=None,
-            )
-        )
-        assert lowered not in seen, (
-            "WordSprint options must not contain case-insensitive duplicates: "
-            + _format_word_integrity_context(
-                word_id=word_id,
-                word=word,
-                options=options,
-                correct_answer=None,
-            )
-        )
-        seen.add(lowered)
+
+def _get_words_question(client: APIClient, lesson_id):
+    start_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
+    start_payload = _json_or_raise(start_res, f"/practice/session/start?lesson_id={lesson_id}")
+    assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
+    question = start_payload.get("question")
+    assert isinstance(question, dict) and question.get("word_id") is not None, question
+    assert_no_answer_leakage(question, context=f"words lesson_id={lesson_id}")
+    return question
 
 
 def test_words_submission():
@@ -148,13 +111,7 @@ def test_words_submission():
     courses_payload = _json_or_raise(courses_res, "/practice/courses")
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    start_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
-    start_payload = _json_or_raise(start_res, f"/practice/session/start?lesson_id={lesson_id}")
-
-    assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
-    assert "question" in start_payload, f"question missing in session start payload: {start_payload}"
-
-    question = start_payload["question"]
+    question = _get_words_question(client, lesson_id)
     assert isinstance(question, dict) and question, f"Invalid question payload in session start response: {question}"
     assert "word_id" in question, f"word_id missing in question payload: {question}"
     assert "options" in question, f"options missing in question payload: {question}"
@@ -184,12 +141,7 @@ def test_words_answer_integrity():
     courses_payload = _json_or_raise(courses_res, "/practice/courses")
     lesson_id = _extract_first_lesson_id(courses_payload)
 
-    start_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
-    start_payload = _json_or_raise(start_res, f"/practice/session/start?lesson_id={lesson_id}")
-
-    assert isinstance(start_payload, dict) and start_payload, f"Invalid session start payload: {start_payload}"
-    question = start_payload.get("question")
-    assert isinstance(question, dict) and question, f"Invalid question payload: {question}"
+    question = _get_words_question(client, lesson_id)
 
     word_id = question.get("word_id")
     word = question.get("word")
@@ -221,16 +173,51 @@ def test_words_answer_integrity():
         )
     )
 
-    normalized_options = {str(option).strip().lower() for option in options}
-    assert correct_answer.strip().lower() in normalized_options, (
-        "WordSprint correct_answer was not present in displayed options: "
-        + _format_word_integrity_context(
-            word_id=word_id,
-            word=word,
-            options=options,
-            correct_answer=correct_answer,
-        )
+    assert_answer_in_options(
+        item_id=word_id,
+        headword=word,
+        options=options,
+        correct_answer=correct_answer,
+        context="words",
     )
+
+
+def test_words_learning_integrity():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    jwt_payload = _decode_jwt_payload(client.token)
+    if jwt_payload.get("user_id") is None:
+        pytest.skip("Skipping words integrity test: student JWT missing user_id claim")
+
+    courses_res = client.get("/practice/courses")
+    courses_payload = _json_or_raise(courses_res, "/practice/courses")
+    lesson_id = _extract_first_lesson_id(courses_payload)
+
+    first_question = _get_words_question(client, lesson_id)
+    _assert_words_options_integrity(
+        word_id=first_question["word_id"],
+        word=first_question.get("word"),
+        options=first_question.get("options"),
+    )
+
+    submit_res = client.post(
+        "/practice/synonym/answer",
+        {
+            "word_id": first_question["word_id"],
+            "chosen": "__validation_wrong__",
+            "response_ms": 1000,
+        },
+    )
+    assert submit_res.status_code == 200, submit_res.text
+
+    second_question = _get_words_question(client, lesson_id)
+    _assert_words_options_integrity(
+        word_id=second_question["word_id"],
+        word=second_question.get("word"),
+        options=second_question.get("options"),
+    )
+    assert_progression_advances(first_question, second_question, context=f"words lesson_id={lesson_id}")
 
 
 def test_invalid_word_submission():
@@ -262,13 +249,9 @@ def test_words_no_immediate_repeat():
     lesson_ids = _extract_lesson_ids(courses_payload)
 
     for lesson_id in lesson_ids[:10]:
-        first_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
-        if first_res.status_code != 200:
-            continue
-
-        first_payload = _json_or_raise(first_res, f"/practice/session/start?lesson_id={lesson_id}")
-        first_question = first_payload.get("question")
-        if not isinstance(first_question, dict) or first_question.get("word_id") is None:
+        try:
+            first_question = _get_words_question(client, lesson_id)
+        except AssertionError:
             continue
 
         _assert_optional_encouragement(first_question)
@@ -283,12 +266,9 @@ def test_words_no_immediate_repeat():
         )
         assert submit_res.status_code == 200, submit_res.text
 
-        second_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
-        assert second_res.status_code == 200, second_res.text
-        second_payload = _json_or_raise(second_res, f"/practice/session/start?lesson_id={lesson_id}")
-        second_question = second_payload.get("question")
-        assert isinstance(second_question, dict) and second_question.get("word_id") is not None, second_payload
+        second_question = _get_words_question(client, lesson_id)
         _assert_optional_encouragement(second_question)
+        assert_progression_advances(first_question, second_question, context=f"words lesson_id={lesson_id}")
 
         if second_question["word_id"] != first_question["word_id"]:
             return
@@ -303,12 +283,9 @@ def test_words_no_immediate_repeat():
         )
         assert second_submit_res.status_code == 200, second_submit_res.text
 
-        third_res = client.get(f"/practice/session/start?lesson_id={lesson_id}")
-        assert third_res.status_code == 200, third_res.text
-        third_payload = _json_or_raise(third_res, f"/practice/session/start?lesson_id={lesson_id}")
-        third_question = third_payload.get("question")
-        assert isinstance(third_question, dict) and third_question.get("word_id") is not None, third_payload
+        third_question = _get_words_question(client, lesson_id)
         _assert_optional_encouragement(third_question)
+        assert_progression_advances(second_question, third_question, context=f"words lesson_id={lesson_id}")
 
         if third_question["word_id"] != second_question["word_id"]:
             raise AssertionError(
@@ -318,3 +295,38 @@ def test_words_no_immediate_repeat():
             )
 
     pytest.skip("Skipping words anti-repeat test: no suitable multi-item lesson found.")
+
+
+def test_words_review_distribution_warn():
+    client = APIClient()
+    client.login(TEST_USERS["student"]["email"], TEST_USERS["student"]["password"])
+
+    jwt_payload = _decode_jwt_payload(client.token)
+    if jwt_payload.get("user_id") is None:
+        pytest.skip("Skipping words review distribution test: student JWT missing user_id claim")
+
+    courses_res = client.get("/practice/courses")
+    courses_payload = _json_or_raise(courses_res, "/practice/courses")
+    lesson_id = _extract_first_lesson_id(courses_payload)
+
+    observed_questions = []
+    current_question = _get_words_question(client, lesson_id)
+    observed_questions.append(current_question)
+
+    for _ in range(5):
+        submit_res = client.post(
+            "/practice/synonym/answer",
+            {
+                "word_id": current_question["word_id"],
+                "chosen": "__validation_wrong__",
+                "response_ms": 1000,
+            },
+        )
+        assert submit_res.status_code == 200, submit_res.text
+        current_question = _get_words_question(client, lesson_id)
+        observed_questions.append(current_question)
+
+    warn_if_review_distribution_excessive(
+        observed_questions,
+        context=f"words lesson_id={lesson_id}",
+    )
