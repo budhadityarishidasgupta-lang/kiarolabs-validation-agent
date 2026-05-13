@@ -19,8 +19,14 @@ export function monitorPracticeFailures(page: Page, failures: string[]) {
 }
 
 export async function expectPracticeQuestion(page: Page) {
-  const submitButton = page.getByRole("button", { name: /submit answer/i });
-  const questionLabel = page.getByText(/^Question\s+\d+/i).first();
+  const submitButton = page
+    .getByTestId("submit-answer")
+    .or(page.getByRole("button", { name: /submit answer/i }))
+    .first();
+  const questionLabel = page
+    .getByTestId("question-counter")
+    .or(page.getByText(/^Question\s+\d+/i).first())
+    .first();
   const emptyState = page.getByText(
     /No question available|No questions available|No question available for this lesson yet|Select a lesson to begin practice|Choose a lesson from the side panel/i,
   );
@@ -59,12 +65,19 @@ export async function answerCurrentQuestion(page: Page, answer?: string) {
     await page.locator('button[aria-pressed]').first().click();
   }
 
-  await page.getByRole("button", { name: /submit answer/i }).click();
+  await page
+    .getByTestId("submit-answer")
+    .or(page.getByRole("button", { name: /submit answer/i }))
+    .first()
+    .click();
   await expect(feedbackStatus).toBeVisible({ timeout: 10000 });
 }
 
 export async function goToNextQuestion(page: Page) {
-  const questionLabel = page.getByText(/^Question\s+\d+/i).first();
+  const questionLabel = page
+    .getByTestId("question-counter")
+    .or(page.getByText(/^Question\s+\d+/i).first())
+    .first();
   const currentQuestionLabel = (await questionLabel.textContent().catch(() => null))?.trim() ?? null;
 
   await page.getByRole("button", { name: /next question/i }).click();
