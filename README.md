@@ -159,6 +159,36 @@ The agent should:
 - maths mock tests
 - spelling question retrieval
 - words submission
+- VR printable answer-key validation from CSV fixtures
+
+## VR Printable Validation
+
+The Python agent can now validate verbal reasoning printable papers end to end.
+
+It works like this:
+
+1. put the same CSV you upload through admin into:
+   - `fixtures/vr-answer-keys/`
+   - or a custom folder via `VALIDATION_VR_KEYS_DIR`
+2. run `python main.py`
+3. the agent will:
+   - log in as admin
+   - fetch the stored VR answer key from the backend
+   - compare it with your CSV row by row
+   - fetch the student-visible question count from `/practice/vr/questions`
+   - submit a perfect attempt and expect a full score
+   - submit a one-answer-wrong attempt and expect the score to drop by exactly one
+
+Expected CSV format:
+
+```csv
+paper_code,question_number,correct_answer
+VR-P3,1,B
+VR-P3,2,B
+VR-P3,3,C
+```
+
+This is the scalable path for more printable subjects too: each subject can get its own fixture folder plus a matching API validation module.
 
 ## What To Add Next
 
@@ -178,3 +208,60 @@ Keep this repo as the autonomous validation watchdog.
 - `validation-agent` = runtime/API/E2E validation
 
 That split is clean and scalable.
+
+## Skill-Based Validation Architecture
+
+The validation agent now includes modular skill checks under:
+
+- `validation_agent/skills/`
+- `validation_agent/skill_config/`
+- `reports/latest_report.md`
+
+Each skill returns a shared result contract:
+
+- `status`: `PASS | FAIL | RISK | NEEDS_MANUAL_CHECK`
+- `skill_name`
+- `summary`
+- `details`
+- `files_checked`
+- `recommendations`
+
+### Skill Responsibility Map
+
+- Architecture Guardrails: detects SQL in frontend, cross-app access patterns, and authority-location risks.
+- Learning Integrity: detects answer leaks and attempt-history overwrite signals.
+- Preview Access: validates preview contract settings and static preview/full/locked handling signals.
+- Mock Security: detects query-param spoof risks like `unlocked=true` trust.
+- Purchase Flow: checks purchase baseline drift and purchase intent/redirect continuity signals.
+- Printable Preview: scans sample asset metadata and potential full-PDF exposure risks.
+- Brand Language: scans frontend copy for banned terms from config.
+- Manual QA: emits required browser/runtime checklist items.
+
+### Status Interpretation
+
+- `PASS`: no violation detected by static checks.
+- `FAIL`: clear regression/violation found.
+- `RISK`: suspicious signal found that needs targeted review.
+- `NEEDS_MANUAL_CHECK`: dynamic verification required or baseline not yet approved.
+
+### Running The Agent
+
+Run all checks and generate reports:
+
+```bash
+python main.py
+```
+
+Run only unit tests:
+
+```bash
+pytest -q validation_agent/tests
+```
+
+Generate purchase baseline candidate:
+
+```bash
+python -m validation_agent.skills.purchase_baseline
+```
+
+The validation agent reports issues; it does not auto-fix production code.

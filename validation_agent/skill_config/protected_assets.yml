@@ -1,0 +1,3 @@
+intent:
+  - prevent full paid PDFs from being exposed as public samples
+  - allow controlled sample images or sample PDFs only

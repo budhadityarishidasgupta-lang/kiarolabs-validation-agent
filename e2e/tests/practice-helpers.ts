@@ -89,3 +89,10 @@ export async function goToNextQuestion(page: Page) {
 
   await expect(questionLabel).toBeVisible({ timeout: 10000 });
 }
+
+export async function expectPreviewLockState(page: Page) {
+  const lockIndicator = page.getByText(
+    /locked|unlock full access|preview limit|question 6|continue practice|complete mock exam/i,
+  );
+  await expect(lockIndicator.first()).toBeVisible({ timeout: 15000 });
+}

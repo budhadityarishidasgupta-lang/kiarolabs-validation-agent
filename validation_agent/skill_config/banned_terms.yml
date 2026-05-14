@@ -1,0 +1,20 @@
+banned_terms:
+  - free trial
+  - free access
+  - subscribe
+  - subscription
+  - paywall
+  - limited offer
+  - hurry
+  - deal
+  - sale
+
+preferred_terms:
+  - preview
+  - sample
+  - continue practice
+  - unlock full access
+  - full paper
+  - complete mock exam
+
+allowlist: []
