@@ -4,6 +4,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+BASE_URL = os.getenv("VALIDATION_BASE_URL", "https://kiarolabs-membership-service.onrender.com").strip().rstrip("/")
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("VALIDATION_REQUEST_TIMEOUT_SECONDS", "20"))
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -30,7 +33,7 @@ def load_settings() -> Settings:
     reports_dir = Path(os.getenv("VALIDATION_REPORTS_DIR", repo_root / "reports"))
     vr_keys_dir = Path(os.getenv("VALIDATION_VR_KEYS_DIR", repo_root / "fixtures" / "vr-answer-keys"))
 
-    base_url = os.getenv("VALIDATION_BASE_URL", "https://kiarolabs-membership-service.onrender.com").strip().rstrip("/")
+    base_url = BASE_URL
     admin_email = os.getenv("VALIDATION_ADMIN_EMAIL", "").strip() or None
     admin_password = os.getenv("VALIDATION_ADMIN_PASSWORD", "").strip() or None
 
@@ -45,6 +48,6 @@ def load_settings() -> Settings:
         student_password=student_password,
         reports_dir=reports_dir,
         vr_keys_dir=vr_keys_dir,
-        request_timeout_seconds=float(os.getenv("VALIDATION_REQUEST_TIMEOUT_SECONDS", "20")),
+        request_timeout_seconds=REQUEST_TIMEOUT_SECONDS,
         fail_on_failure=_env_bool("VALIDATION_FAIL_ON_FAILURE", True),
     )

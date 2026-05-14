@@ -54,6 +54,10 @@ export async function expectPracticeQuestion(page: Page) {
 
 export async function answerCurrentQuestion(page: Page, answer?: string) {
   const textInput = page.locator('input[type="text"]').first();
+  const textbox = page.getByRole("textbox").first();
+  const answerRegion = page.getByTestId("practice-question").or(page.locator("main")).first();
+  const singleChoiceButton = answerRegion.locator("button[aria-pressed]").first();
+  const multiChoiceCheckbox = answerRegion.getByRole("checkbox").first();
   const feedbackStatus = page
     .locator('[aria-live="polite"], [role="status"]')
     .filter({ hasText: /Not quite right|Correct/i })
@@ -61,8 +65,14 @@ export async function answerCurrentQuestion(page: Page, answer?: string) {
 
   if (await textInput.isVisible().catch(() => false)) {
     await textInput.fill(answer ?? "test");
+  } else if (await textbox.isVisible().catch(() => false)) {
+    await textbox.fill(answer ?? "test");
+  } else if (await multiChoiceCheckbox.isVisible().catch(() => false)) {
+    await multiChoiceCheckbox.click();
+  } else if (await singleChoiceButton.isVisible().catch(() => false)) {
+    await singleChoiceButton.click();
   } else {
-    await page.locator('button[aria-pressed]').first().click();
+    throw new Error("No supported answer input control found (textbox, checkbox, or option button).");
   }
 
   await page
