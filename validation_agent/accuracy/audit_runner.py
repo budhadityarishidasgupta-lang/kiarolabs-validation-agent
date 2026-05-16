@@ -62,7 +62,17 @@ def run_accuracy_audit(settings: Settings) -> AccuracyAuditReport:
     student_login = None
     try:
         if settings.admin_email and settings.admin_password:
-            client = ApiClient(settings.base_url, settings.request_timeout_seconds)
+            client = ApiClient(
+                settings.base_url,
+                settings.request_timeout_seconds,
+                max_retries=settings.request_max_retries,
+                initial_backoff_seconds=settings.request_initial_backoff_seconds,
+                backoff_multiplier=settings.request_backoff_multiplier,
+            )
+            try:
+                client.warmup()
+            except Exception:
+                pass
             admin_login = client.login(settings.admin_email, settings.admin_password)
             if settings.student_email and settings.student_password:
                 student_login = client.login(settings.student_email, settings.student_password)
@@ -87,4 +97,3 @@ def run_accuracy_audit(settings: Settings) -> AccuracyAuditReport:
     finally:
         if client:
             client.close()
-

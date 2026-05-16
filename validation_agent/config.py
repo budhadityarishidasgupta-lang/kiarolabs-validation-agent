@@ -6,6 +6,9 @@ from pathlib import Path
 
 BASE_URL = os.getenv("VALIDATION_BASE_URL", "https://kiarolabs-membership-service.onrender.com").strip().rstrip("/")
 REQUEST_TIMEOUT_SECONDS = float(os.getenv("VALIDATION_REQUEST_TIMEOUT_SECONDS", "20"))
+REQUEST_MAX_RETRIES = int(os.getenv("VALIDATION_REQUEST_MAX_RETRIES", "4"))
+REQUEST_INITIAL_BACKOFF_SECONDS = float(os.getenv("VALIDATION_REQUEST_INITIAL_BACKOFF_SECONDS", "2"))
+REQUEST_BACKOFF_MULTIPLIER = float(os.getenv("VALIDATION_REQUEST_BACKOFF_MULTIPLIER", "2"))
 
 
 @dataclass(frozen=True)
@@ -18,6 +21,9 @@ class Settings:
     reports_dir: Path
     vr_keys_dir: Path
     request_timeout_seconds: float
+    request_max_retries: int
+    request_initial_backoff_seconds: float
+    request_backoff_multiplier: float
     fail_on_failure: bool
 
 
@@ -49,5 +55,8 @@ def load_settings() -> Settings:
         reports_dir=reports_dir,
         vr_keys_dir=vr_keys_dir,
         request_timeout_seconds=REQUEST_TIMEOUT_SECONDS,
+        request_max_retries=REQUEST_MAX_RETRIES,
+        request_initial_backoff_seconds=REQUEST_INITIAL_BACKOFF_SECONDS,
+        request_backoff_multiplier=REQUEST_BACKOFF_MULTIPLIER,
         fail_on_failure=_env_bool("VALIDATION_FAIL_ON_FAILURE", True),
     )

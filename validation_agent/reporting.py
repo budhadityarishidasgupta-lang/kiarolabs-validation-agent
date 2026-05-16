@@ -7,6 +7,7 @@ from pathlib import Path
 
 from validation_agent.skills.base import SkillResult
 from validation_agent.accuracy.types import AccuracyAuditReport
+from validation_agent.client import RequestOutcome
 
 
 @dataclass
@@ -145,6 +146,19 @@ def write_learning_accuracy_reports(accuracy_report: AccuracyAuditReport, report
         severity = finding.get("severity", "unknown")
         grouped.setdefault(product, {}).setdefault(severity, []).append(finding)
 
+    infra_findings = [
+        finding for finding in findings
+        if "fetch failed" in str(finding.get("reason", "")).lower()
+        or "timeout" in str(finding.get("evidence", "")).lower()
+        or "client_unavailable" in str(finding.get("evidence", "")).lower()
+    ]
+    product_findings = [finding for finding in findings if finding not in infra_findings]
+
+    if product_findings:
+        manus_payload = manus_tasks
+    else:
+        manus_payload = []
+
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "totals": {
@@ -154,11 +168,13 @@ def write_learning_accuracy_reports(accuracy_report: AccuracyAuditReport, report
             "risk": sum(1 for f in findings if f.get("status") == "RISK"),
             "needs_review": sum(1 for f in findings if f.get("status") == "NEEDS_REVIEW"),
         },
+        "infra_failures": len(infra_findings),
+        "product_findings": len(product_findings),
         "grouped": grouped,
         "findings": findings,
     }
     json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    manus_path.write_text(json.dumps(manus_tasks, indent=2), encoding="utf-8")
+    manus_path.write_text(json.dumps(manus_payload, indent=2), encoding="utf-8")
 
     lines = [
         "# Learning Accuracy Report",
@@ -185,3 +201,55 @@ def write_learning_accuracy_reports(accuracy_report: AccuracyAuditReport, report
             lines.append("")
     md_path.write_text("\n".join(lines), encoding="utf-8")
     return json_path, md_path, manus_path
+
+
+def write_infra_reports(outcomes: list[RequestOutcome], reports_dir: Path) -> tuple[Path, Path]:
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    md_path = reports_dir / "infra_failures.md"
+    json_path = reports_dir / "timeout_summary.json"
+
+    timeout_like = [
+        outcome for outcome in outcomes
+        if "timeout" in outcome.final_outcome.lower()
+        or "timeout" in outcome.error.lower()
+        or outcome.final_outcome in {"http_5xx_exhausted", "request_exception"}
+    ]
+
+    summary_payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_requests": len(outcomes),
+        "infra_failures": len(timeout_like),
+        "items": [
+            {
+                "endpoint": outcome.path,
+                "method": outcome.method,
+                "retry_count": outcome.retries,
+                "final_outcome": outcome.final_outcome,
+                "duration_seconds": outcome.duration_seconds,
+                "status_code": outcome.status_code,
+                "error": outcome.error,
+            }
+            for outcome in timeout_like
+        ],
+    }
+    json_path.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+
+    lines = [
+        "# Infrastructure Failures",
+        "",
+        f"- Generated: `{summary_payload['generated_at']}`",
+        f"- Total requests observed: `{summary_payload['total_requests']}`",
+        f"- Infra failures/timeouts: `{summary_payload['infra_failures']}`",
+        "",
+    ]
+    for item in summary_payload["items"]:
+        lines.append(f"## {item['method']} {item['endpoint']}")
+        lines.append("")
+        lines.append(f"- Retries: `{item['retry_count']}`")
+        lines.append(f"- Final outcome: `{item['final_outcome']}`")
+        lines.append(f"- Duration (s): `{item['duration_seconds']}`")
+        lines.append(f"- Status code: `{item['status_code']}`")
+        lines.append(f"- Error: `{item['error']}`")
+        lines.append("")
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+    return md_path, json_path
