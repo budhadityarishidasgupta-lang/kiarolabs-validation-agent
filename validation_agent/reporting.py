@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from validation_agent.skills.base import SkillResult
+from validation_agent.accuracy.types import AccuracyAuditReport
 
 
 @dataclass
@@ -127,3 +128,60 @@ def write_skill_report(skill_results: list[SkillResult], reports_dir: Path) -> P
 
     latest_path.write_text("\n".join(lines), encoding="utf-8")
     return latest_path
+
+
+def write_learning_accuracy_reports(accuracy_report: AccuracyAuditReport, reports_dir: Path) -> tuple[Path, Path, Path]:
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    json_path = reports_dir / "learning_accuracy_report.json"
+    md_path = reports_dir / "learning_accuracy_report.md"
+    manus_path = reports_dir / "manus_review_tasks.json"
+
+    findings = [item.to_dict() for item in accuracy_report.findings]
+    manus_tasks = [task.to_dict() for task in accuracy_report.manus_tasks]
+
+    grouped: dict[str, dict[str, list[dict]]] = {}
+    for finding in findings:
+        product = finding.get("product", "unknown")
+        severity = finding.get("severity", "unknown")
+        grouped.setdefault(product, {}).setdefault(severity, []).append(finding)
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "totals": {
+            "findings": len(findings),
+            "pass": sum(1 for f in findings if f.get("status") == "PASS"),
+            "fail": sum(1 for f in findings if f.get("status") == "FAIL"),
+            "risk": sum(1 for f in findings if f.get("status") == "RISK"),
+            "needs_review": sum(1 for f in findings if f.get("status") == "NEEDS_REVIEW"),
+        },
+        "grouped": grouped,
+        "findings": findings,
+    }
+    json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    manus_path.write_text(json.dumps(manus_tasks, indent=2), encoding="utf-8")
+
+    lines = [
+        "# Learning Accuracy Report",
+        "",
+        f"- Generated: `{payload['generated_at']}`",
+        f"- Total findings: `{payload['totals']['findings']}`",
+        f"- PASS: `{payload['totals']['pass']}`",
+        f"- FAIL: `{payload['totals']['fail']}`",
+        f"- RISK: `{payload['totals']['risk']}`",
+        f"- NEEDS_REVIEW: `{payload['totals']['needs_review']}`",
+        "",
+    ]
+    for product, severity_map in grouped.items():
+        lines.append(f"## {product}")
+        lines.append("")
+        for severity, items in severity_map.items():
+            lines.append(f"### Severity: {severity}")
+            lines.append("")
+            for item in items:
+                lines.append(f"- [{item['status']}] `{item['lesson_or_paper_id']}` / `{item['question_id']}`: {item['reason']}")
+                lines.append(f"  - Evidence: {item['evidence']}")
+                lines.append(f"  - Recommended owner: {item['recommended_owner']}")
+                lines.append(f"  - Human review note: {item['suggested_human_review_note']}")
+            lines.append("")
+    md_path.write_text("\n".join(lines), encoding="utf-8")
+    return json_path, md_path, manus_path
