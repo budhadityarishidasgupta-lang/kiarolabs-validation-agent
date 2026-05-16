@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from validation_agent.client import ApiClient, LoginContext
 from validation_agent.reporting import TestResult
@@ -129,11 +130,12 @@ def _webhook_sale(
     product_name: str,
     product_permalink: str,
     product_url: str | None = None,
+    event: str = "sale",
 ) -> dict:
     payload = {
         "email": email,
         "product_name": product_name,
-        "event": "sale",
+        "event": event,
         "sale_id": f"validation-{product_permalink or product_url or product_name}",
     }
     if product_permalink:
@@ -144,6 +146,24 @@ def _webhook_sale(
         "POST",
         "/webhook/gumroad",
         data=payload,
+    )
+
+
+def _webhook_refund(
+    client: ApiClient,
+    *,
+    email: str,
+    product_name: str,
+    product_permalink: str,
+    product_url: str | None = None,
+) -> dict:
+    return _webhook_sale(
+        client,
+        email=email,
+        product_name=product_name,
+        product_permalink=product_permalink,
+        product_url=product_url,
+        event="refund.created",
     )
 
 
@@ -185,6 +205,42 @@ def _modules_from_dashboard(payload: dict) -> dict:
         "general": bool((modules.get("words") or {}).get("unlocked")),
         "comprehension": bool((modules.get("comprehension") or {}).get("unlocked")),
     }
+
+
+def _grant_math_only_via_sale(client: ApiClient, *, student_email: str) -> dict:
+    return _webhook_sale(
+        client,
+        email=student_email,
+        product_name="MathSprint",
+        product_permalink="ztwxby",
+    )
+
+
+def _grant_wordsprint_via_sale(client: ApiClient, *, student_email: str) -> dict:
+    return _webhook_sale(
+        client,
+        email=student_email,
+        product_name="WordSprint",
+        product_permalink="sddokb",
+    )
+
+
+def _now_suffix() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+
+
+def _unique_email(tag: str) -> str:
+    return f"validation+{tag}-{_now_suffix()}@example.com"
+
+
+def _create_validation_user(client: ApiClient, *, tag: str, password: str = "Validation123!") -> LoginContext:
+    email = _unique_email(tag)
+    client.request_json(
+        "POST",
+        "/register",
+        json={"name": f"Validation {tag}", "email": email, "password": password},
+    )
+    return client.login(email, password)
 
 
 def run_gumroad_entitlement_validation(
@@ -335,39 +391,34 @@ def run_gumroad_entitlement_validation(
     # Mock purchase should unlock only matching mock test id.
     for scenario in MOCK_SALES:
         try:
-            _set_user_apps(client, admin, student_email, [])
+            mock_student = _create_validation_user(client, tag="mock-one-to-one")
             _webhook_sale(
                 client,
-                email=student_email,
+                email=mock_student.email,
                 product_name=scenario.product_name,
                 product_permalink=scenario.product_permalink,
                 product_url=scenario.product_url,
             )
-            start_ok = client.request_json(
+            tests_payload = client.request_json(
                 "GET",
-                "/practice/math/test/start?test_id=MATH_MOCK_1",
-                token=student.token,
+                "/practice/math/tests",
+                token=mock_student.token,
             )
-            access_mode = str(start_ok.get("access_mode") or "").lower()
-            wrong_mock_denied = False
-            try:
-                client.request_json(
-                    "GET",
-                    "/practice/math/test/start?test_id=MATH_MOCK_2",
-                    token=student.token,
-                )
-            except Exception:
-                wrong_mock_denied = True
+            unlocked_tests = [
+                str(test.get("test_id"))
+                for test in (tests_payload.get("tests") or [])
+                if test.get("access") == "full" or bool(test.get("purchased"))
+            ]
 
-            if access_mode != "full" or not wrong_mock_denied:
+            if unlocked_tests != ["MATH_MOCK_1"]:
                 results.append(
                     TestResult(
                         test_id=scenario.test_id,
                         status="fail",
                         message="Mock purchase did not enforce one-to-one unlock behavior.",
                         details={
-                            "mock_1_access_mode": access_mode,
-                            "mock_2_denied": wrong_mock_denied,
+                            "unlocked_tests": unlocked_tests,
+                            "tests_payload": tests_payload,
                         },
                     )
                 )
@@ -438,9 +489,10 @@ def run_gumroad_entitlement_validation(
 
     # Additional explicit check: math-only user should not see all modules open.
     try:
-        _set_user_apps(client, admin, student_email, ["math"])
-        dashboard_payload = client.request_json("GET", "/dashboard", token=student.token)
-        practice_dashboard_payload = client.request_json("GET", "/practice/dashboard", token=student.token)
+        math_dashboard_student = _create_validation_user(client, tag="math-dashboard")
+        _grant_math_only_via_sale(client, student_email=math_dashboard_student.email)
+        dashboard_payload = client.request_json("GET", "/dashboard", token=math_dashboard_student.token)
+        practice_dashboard_payload = client.request_json("GET", "/practice/dashboard", token=math_dashboard_student.token)
 
         dashboard_unlocks = _modules_from_dashboard(dashboard_payload)
         practice_unlocks = _modules_from_dashboard(practice_dashboard_payload)
@@ -487,9 +539,10 @@ def run_gumroad_entitlement_validation(
 
     # Runtime enforcement check: direct full-access routes should be denied for non-entitled modules.
     try:
-        _set_user_apps(client, admin, student_email, ["math"])
+        math_runtime_student = _create_validation_user(client, tag="math-runtime")
+        _grant_math_only_via_sale(client, student_email=math_runtime_student.email)
 
-        math_lessons = client.request_json("GET", "/practice/math/lessons", token=student.token)
+        math_lessons = client.request_json("GET", "/practice/math/lessons", token=math_runtime_student.token)
         if not isinstance(math_lessons, list):
             raise RuntimeError("Expected /practice/math/lessons to return a list")
 
@@ -501,7 +554,7 @@ def run_gumroad_entitlement_validation(
         denied_results = {}
         for path in denied_paths:
             try:
-                client.request_json("GET", path, token=student.token)
+                client.request_json("GET", path, token=math_runtime_student.token)
                 denied_results[path] = "unexpected_success"
             except Exception as exc:
                 denied_results[path] = str(exc)
@@ -535,13 +588,19 @@ def run_gumroad_entitlement_validation(
 
     # Stale-session check: revocation must apply immediately for existing token (no re-login).
     try:
-        _set_user_apps(client, admin, student_email, ["general"])
-        client.request_json("GET", "/practice/words/courses", token=student.token)
+        revocation_student = _create_validation_user(client, tag="revocation")
+        _grant_wordsprint_via_sale(client, student_email=revocation_student.email)
+        client.request_json("GET", "/practice/words/courses", token=revocation_student.token)
 
-        _set_user_apps(client, admin, student_email, ["math"])
+        _webhook_refund(
+            client,
+            email=revocation_student.email,
+            product_name="WordSprint",
+            product_permalink="sddokb",
+        )
         revoked_denied = False
         try:
-            client.request_json("GET", "/practice/words/courses", token=student.token)
+            client.request_json("GET", "/practice/words/courses", token=revocation_student.token)
         except Exception:
             revoked_denied = True
 
