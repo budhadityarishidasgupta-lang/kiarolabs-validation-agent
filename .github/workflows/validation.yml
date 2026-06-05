@@ -2,8 +2,6 @@ name: Validation Agent
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 */4 * * *"
 
 jobs:
   backend-validation:
